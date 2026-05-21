@@ -1,0 +1,187 @@
+package com.simats.hospiq.ui.screens.doctor
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.simats.hospiq.navigation.Screen
+import com.simats.hospiq.ui.components.*
+import com.simats.hospiq.ui.theme.*
+import com.simats.hospiq.utils.DemoData
+import com.simats.hospiq.utils.SessionManager
+import com.simats.hospiq.viewmodels.AppointmentListState
+import com.simats.hospiq.viewmodels.AppointmentViewModel
+
+@Composable
+fun DoctorAppointmentsScreen(
+    sessionManager: SessionManager,
+    appointmentViewModel: AppointmentViewModel,
+    onNavigateToHome: () -> Unit,
+    onNavigateToNotifications: () -> Unit,
+    onNavigateToProfile: () -> Unit,
+    onNavigateToHospital: () -> Unit = {}
+) {
+    var selectedFilter by remember { mutableStateOf("All") }
+    val filters = listOf("All", "Pending", "Confirmed", "Past")
+    val apptState by appointmentViewModel.appointmentsState.collectAsState()
+    LaunchedEffect(Unit) { appointmentViewModel.loadDoctorAppointments(sessionManager.getUserId()) }
+    val allAppointments = when (val s = apptState) {
+        is AppointmentListState.Success -> s.appointments
+        else -> DemoData.doctorAppointments
+    }
+    val filtered = when (selectedFilter) {
+        "Pending" -> allAppointments.filter { it.status == "pending" }
+        "Confirmed" -> allAppointments.filter { it.status == "accepted" }
+        "Past" -> allAppointments.filter { it.status in listOf("completed", "rejected") }
+        else -> allAppointments
+    }
+    val pendingList = allAppointments.filter { it.status == "pending" }
+    val confirmedList = allAppointments.filter { it.status == "accepted" }
+
+    Scaffold(
+        containerColor = AppBackground,
+        bottomBar = {
+            BottomNavBar(
+                currentRoute = Screen.DoctorAppointments.route,
+                items = doctorNavItems,
+                onNavItemClick = { route ->
+                    when (route) {
+                        Screen.DoctorDashboard.route -> onNavigateToHome()
+                        Screen.DoctorHospital.route -> onNavigateToHospital()
+                        Screen.DoctorNotifications.route -> onNavigateToNotifications()
+                        Screen.PatientProfile.route -> onNavigateToProfile()
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            // Top bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(SurfaceWhite)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("🏥", fontSize = 22.sp)
+                Spacer(Modifier.width(8.dp))
+                Text("HospiQ", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DeepTeal, modifier = Modifier.weight(1f))
+                Box(
+                    modifier = Modifier.size(36.dp).background(IndigoDoctor, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(sessionManager.getInitials(), color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Text("Appointments", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = CharcoalText)
+                Text("Manage your patient schedule and requests.", fontSize = 13.sp, color = SlateGray)
+            }
+
+            // Filter tabs
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                filters.forEach { filter ->
+                    val isSelected = selectedFilter == filter
+                    val count = when (filter) {
+                        "Pending" -> pendingList.size
+                        "All" -> allAppointments.size
+                        else -> null
+                    }
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { selectedFilter = filter },
+                        label = {
+                            Text(
+                                if (count != null) "$filter $count" else filter,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                            )
+                        },
+                        shape = RoundedCornerShape(20.dp),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = DeepTeal,
+                            selectedLabelColor = SurfaceWhite
+                        )
+                    )
+                }
+            }
+
+            LazyColumn(
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (pendingList.isNotEmpty() && (selectedFilter == "All" || selectedFilter == "Pending")) {
+                    item {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("New Requests", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = CharcoalText, modifier = Modifier.weight(1f))
+                            Box(
+                                modifier = Modifier
+                                    .background(CoralWash, RoundedCornerShape(20.dp))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text("${pendingList.size} PENDING", fontSize = 11.sp, color = CoralOrange, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    items(pendingList) { appt ->
+                        AppointmentCard(
+                            appointment = appt, isDoctor = true,
+                            action1Label = "Accept", onAction1 = {
+                                appointmentViewModel.acceptAppointment(appt.id) {
+                                    appointmentViewModel.loadDoctorAppointments(sessionManager.getUserId())
+                                }
+                            },
+                            action2Label = "Reject", onAction2 = {
+                                appointmentViewModel.rejectAppointment(appt.id) {
+                                    appointmentViewModel.loadDoctorAppointments(sessionManager.getUserId())
+                                }
+                            }
+                        )
+                    }
+                }
+
+                if (confirmedList.isNotEmpty() && (selectedFilter == "All" || selectedFilter == "Confirmed")) {
+                    item {
+                        Spacer(Modifier.height(4.dp))
+                        Text("Upcoming Today", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = CharcoalText)
+                    }
+                    items(confirmedList) { appt ->
+                        Column {
+                            AppointmentCard(
+                                appointment = appt, isDoctor = true,
+                                action1Label = "Mark Complete", onAction1 = {},
+                                action2Label = "Reschedule", onAction2 = {}
+                            )
+                            Text(
+                                "Starts in 45 mins",
+                                fontSize = 12.sp, color = AmberStar, fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                            )
+                        }
+                    }
+                }
+
+                if (filtered.isEmpty()) {
+                    item { EmptyState(title = "No appointments", subtitle = "No $selectedFilter appointments found.") }
+                }
+            }
+        }
+    }
+}
