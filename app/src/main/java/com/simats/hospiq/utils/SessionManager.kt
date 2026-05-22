@@ -5,7 +5,7 @@ import android.content.Context
 class SessionManager(context: Context) {
     private val prefs = context.getSharedPreferences("hospiq_prefs", Context.MODE_PRIVATE)
 
-    fun saveSession(token: String, userId: Int, role: String, name: String, hospitalId: Int? = null, phone: String? = null, profilePhoto: String? = null) {
+    fun saveSession(token: String, userId: Int, role: String, name: String, hospitalId: Int? = null, phone: String? = null, profilePhoto: String? = null, doctorId: Int? = null) {
         prefs.edit()
             .putString("auth_token", token)
             .putInt("user_id", userId)
@@ -14,6 +14,7 @@ class SessionManager(context: Context) {
             .putString("user_phone", phone)
             .putString("profile_photo", profilePhoto)
             .putInt("hospital_id", hospitalId ?: -1)
+            .putInt("doctor_id", doctorId ?: -1)
             .apply()
     }
 
@@ -33,6 +34,10 @@ class SessionManager(context: Context) {
     fun getProfilePhoto(): String? = prefs.getString("profile_photo", null)
     fun getHospitalId(): Int? {
         val id = prefs.getInt("hospital_id", -1)
+        return if (id == -1) null else id
+    }
+    fun getDoctorId(): Int? {
+        val id = prefs.getInt("doctor_id", -1)
         return if (id == -1) null else id
     }
     fun isLoggedIn(): Boolean = getToken() != null

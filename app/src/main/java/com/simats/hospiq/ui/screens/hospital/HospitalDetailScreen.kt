@@ -26,6 +26,8 @@ import com.simats.hospiq.ui.theme.*
 import com.simats.hospiq.utils.DemoData
 import com.simats.hospiq.viewmodels.HospitalDetailState
 import com.simats.hospiq.viewmodels.HospitalViewModel
+import coil.compose.AsyncImage
+import com.simats.hospiq.network.ApiConfig
 
 @Composable
 fun HospitalDetailScreen(
@@ -74,11 +76,21 @@ fun HospitalDetailScreen(
             }
         }
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
+        if (detailState is HospitalDetailState.Loading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = DeepTeal)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
             // Hero image
             item {
                 Box(
@@ -87,11 +99,20 @@ fun HospitalDetailScreen(
                         .height(220.dp)
                         .background(DeepTeal)
                 ) {
-                    Text(
-                        text = "🏥",
-                        fontSize = 72.sp,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
+                    if (!hospital.photo.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = "${ApiConfig.IMAGE_BASE_URL}uploads/hospitals/${hospital.photo}",
+                            contentDescription = hospital.name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                    } else {
+                        Text(
+                            text = "🏥",
+                            fontSize = 72.sp,
+                            modifier = Modifier.align(Alignment.Center)
+                        )
+                    }
                     // Back button
                     IconButton(
                         onClick = onBackClick,
@@ -211,6 +232,7 @@ fun HospitalDetailScreen(
         }
     }
 }
+}
 
 @Composable
 private fun StatBox(value: String, label: String, modifier: Modifier = Modifier) {
@@ -232,15 +254,26 @@ private fun DoctorMiniCard(doctor: Doctor, onBookClick: () -> Unit) {
             modifier = Modifier.padding(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .background(IndigoLight, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                val initials = doctor.name.trim().split(" ")
-                    .take(2).joinToString("") { it.first().uppercaseChar().toString() }
-                Text(initials, color = IndigoDoctor, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+            if (!doctor.photo.isNullOrEmpty()) {
+                AsyncImage(
+                    model = "${ApiConfig.IMAGE_BASE_URL}${doctor.photo}",
+                    contentDescription = doctor.name,
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .background(IndigoLight, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val initials = doctor.name.trim().split(" ")
+                        .take(2).joinToString("") { it.first().uppercaseChar().toString() }
+                    Text(initials, color = IndigoDoctor, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                }
             }
             Spacer(Modifier.height(8.dp))
             Text(doctor.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CharcoalText)

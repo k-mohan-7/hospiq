@@ -20,6 +20,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import java.util.Calendar
+import java.util.Locale
+import java.text.SimpleDateFormat
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -29,15 +32,21 @@ import com.simats.hospiq.navigation.Screen
 import com.simats.hospiq.ui.components.*
 import com.simats.hospiq.ui.theme.*
 import com.simats.hospiq.utils.SessionManager
+import com.simats.hospiq.utils.DemoData
+import com.simats.hospiq.viewmodels.DoctorProfileState
 import com.simats.hospiq.viewmodels.AuthViewModel
 import com.simats.hospiq.viewmodels.AppointmentViewModel
+import com.simats.hospiq.viewmodels.DoctorViewModel
 import com.simats.hospiq.viewmodels.AppointmentListState
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 
 @Composable
 fun PatientProfileScreen(
     sessionManager: SessionManager,
     authViewModel: AuthViewModel,
     appointmentViewModel: AppointmentViewModel,
+    doctorViewModel: DoctorViewModel,
     onLogout: () -> Unit,
     onNavigateToHome: () -> Unit,
     onNavigateToSearch: () -> Unit,
@@ -52,10 +61,12 @@ fun PatientProfileScreen(
 
     // Load appointments for dynamic counts
     val userId = sessionManager.getUserId()
+    val doctorId = sessionManager.getDoctorId() ?: userId
     LaunchedEffect(userId) {
         if (userId != -1) {
             if (isDoctor) {
-                appointmentViewModel.loadDoctorAppointments(userId)
+                appointmentViewModel.loadDoctorAppointments(doctorId)
+                doctorViewModel.loadDoctorProfile(doctorId) // Load real slots/status from DB
             } else {
                 appointmentViewModel.loadPatientAppointments(userId)
             }
@@ -80,9 +91,18 @@ fun PatientProfileScreen(
             else -> "0"
         }
     }
+    val doctorPatientsCountString = remember(appointmentsState) {
+        when (val state = appointmentsState) {
+            is AppointmentListState.Success -> {
+                state.appointments.map { it.patientId }.distinct().size.toString()
+            }
+            else -> "0"
+        }
+    }
 
     // Profile editing states
     var showEditDialog by remember { mutableStateOf(false) }
+    var showAvailabilitySettings by remember { mutableStateOf(false) }
     var editName by remember { mutableStateOf("") }
     var editPhone by remember { mutableStateOf("") }
     var selectedImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
@@ -225,11 +245,11 @@ fun PatientProfileScreen(
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
                         if (isDoctor) {
-                            ProfileStat("24", "Appts")
+                            ProfileStat(apptCountString, "Appts")
                             VerticalDivider(modifier = Modifier.height(40.dp), color = BorderGray)
                             ProfileStat("4.9", "Rating")
                             VerticalDivider(modifier = Modifier.height(40.dp), color = BorderGray)
-                            ProfileStat("18", "Patients")
+                            ProfileStat(doctorPatientsCountString, "Patients")
                         } else {
                             // Hides the middle "Hospitals" column for patients, making counts clean and dynamic
                             ProfileStat(apptCountString, "Appts")
@@ -250,7 +270,11 @@ fun PatientProfileScreen(
                         elevation = CardDefaults.cardElevation(2.dp)
                     ) {
                         Column {
-                            ProfileMenuItem(icon = Icons.Default.DateRange, label = "My Availability", onClick = {})
+                            ProfileMenuItem(
+                                icon = Icons.Default.DateRange, 
+                                label = "Create Slots", 
+                                onClick = { showAvailabilitySettings = true }
+                            )
                             HorizontalDivider(color = BorderGray)
                             ProfileMenuItem(icon = Icons.Default.LocalHospital, label = "Hospital Profile", onClick = {})
                         }
@@ -282,6 +306,14 @@ fun PatientProfileScreen(
                 Spacer(Modifier.height(40.dp))
             }
         }
+    }
+
+    if (showAvailabilitySettings) {
+        CustomSlotCreatorDialog(
+            doctorViewModel = doctorViewModel,
+            doctorId = doctorId,
+            onDismiss = { showAvailabilitySettings = false }
+        )
     }
 
     // Edit Profile Dialog
@@ -480,5 +512,165 @@ private fun ProfileMenuItem(
         Spacer(Modifier.width(14.dp))
         Text(label, fontSize = 15.sp, color = labelColor, modifier = Modifier.weight(1f))
         Icon(Icons.Default.ChevronRight, null, tint = BorderGray, modifier = Modifier.size(20.dp))
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun CustomSlotCreatorDialog(
+    doctorViewModel: DoctorViewModel,
+    doctorId: Int,
+    onDismiss: () -> Unit
+) {
+    var isSaving by remember { mutableStateOf(false) }
+    var applyTo by remember { mutableStateOf("all_days") } // "all_days" or "specific_date"
+    
+    val calendar = Calendar.getInstance()
+    var selectedDate by remember { mutableStateOf(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(calendar.time)) }
+    
+    val context = LocalContext.current
+    fun showDatePicker() {
+        val datePickerDialog = android.app.DatePickerDialog(
+            context,
+            { _, year, month, dayOfMonth ->
+                val cal = Calendar.getInstance()
+                cal.set(year, month, dayOfMonth)
+                selectedDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(cal.time)
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        )
+        datePickerDialog.datePicker.minDate = System.currentTimeMillis() - 1000
+        datePickerDialog.show()
+    }
+
+    // Default 10 custom slots
+    val timings = remember { 
+        mutableStateListOf(
+            "09:00", "09:30", "10:00", "10:30", "11:00", 
+            "14:00", "14:30", "15:00", "15:30", "16:00"
+        ) 
+    }
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = { if (!isSaving) onDismiss() }) {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = AppBackground),
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .padding(16.dp)
+                .heightIn(max = 600.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Create Custom Slots",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CharcoalText
+                    )
+                    IconButton(onClick = onDismiss, enabled = !isSaving) {
+                        Text("✕", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SlateGray)
+                    }
+                }
+
+                Text(
+                    "Set up your 10 custom booking slots. You can apply these to all repetitive days or override a specific date.",
+                    fontSize = 12.sp,
+                    color = SlateGray
+                )
+
+                // Apply To Selection
+                Text("Apply To", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CharcoalText)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = applyTo == "all_days",
+                        onClick = { applyTo = "all_days" },
+                        label = { Text("All Repetitive Days", fontSize = 12.sp) },
+                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = SoftTeal, selectedLabelColor = DeepTeal),
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilterChip(
+                        selected = applyTo == "specific_date",
+                        onClick = { applyTo = "specific_date" },
+                        label = { Text("Specific Date", fontSize = 12.sp) },
+                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = SoftTeal, selectedLabelColor = DeepTeal),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                if (applyTo == "specific_date") {
+                    OutlinedTextField(
+                        value = selectedDate,
+                        onValueChange = {},
+                        label = { Text("Select Date") },
+                        readOnly = true,
+                        trailingIcon = { Icon(Icons.Default.DateRange, "Pick Date", tint = DeepTeal, modifier = Modifier.clickable { showDatePicker() }) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+
+                Text("Custom Timings (e.g. 09:30, 14:15)", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CharcoalText)
+
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    maxItemsInEachRow = 2,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    for (i in 0 until 10) {
+                        OutlinedTextField(
+                            value = timings[i],
+                            onValueChange = { newValue -> timings[i] = newValue },
+                            label = { Text("Slot ${i + 1}") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                // Save/Close Button
+                Button(
+                    onClick = {
+                        isSaving = true
+                        doctorViewModel.createCustomSlots(
+                            doctorId = doctorId,
+                            applyTo = applyTo,
+                            targetDate = selectedDate,
+                            timings = timings.toList().filter { it.isNotBlank() },
+                            onDone = {
+                                isSaving = false
+                                onDismiss()
+                            }
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = DeepTeal),
+                    enabled = !isSaving
+                ) {
+                    if (isSaving) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp))
+                    } else {
+                        Text("Save & Apply Slots", fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+            }
+        }
     }
 }

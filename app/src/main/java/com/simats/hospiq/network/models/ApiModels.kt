@@ -29,7 +29,9 @@ data class AuthData(
     val name: String,
     val phone: String? = null,
     val email: String? = null,
-    val profile_photo: String? = null
+    val profile_photo: String? = null,
+    val doctor_id: Int? = null,
+    val hospital_id: Int? = null
 )
 
 // ── Hospital ──────────────────────────────────────────────────────────────────
@@ -64,7 +66,9 @@ data class Doctor(
     @SerializedName("years_experience") val yearsExperience: Int = 0,
     val status: String = "available",
     val photo: String? = null,
-    val bio: String = ""
+    val bio: String = "",
+    @SerializedName("dynamic_timings") val dynamicTimings: Boolean = true,
+    @SerializedName("active_slots") val activeSlots: String = "1,2,3,4,5,6,7,8,9,10,11,12"
 )
 
 data class DoctorListData(val doctors: List<Doctor>)
@@ -98,7 +102,12 @@ data class Appointment(
     @SerializedName("appointment_date") val date: String = "",
     @SerializedName("appointment_time") val time: String = "",
     val status: String = "pending",
-    @SerializedName("consultation_type") val consultationType: String = "in_person"
+    @SerializedName("consultation_type") val consultationType: String = "in_person",
+    @SerializedName("illness_name") val illnessName: String? = null,
+    @SerializedName("illness_description") val illnessDescription: String? = null,
+    @SerializedName("precautions") val precautions: String? = null,
+    @SerializedName("doctor_advice") val doctorAdvice: String? = null,
+    @SerializedName("doctor_status") val doctorStatus: String? = "available"
 )
 
 data class AppointmentListData(val appointments: List<Appointment>)
@@ -107,7 +116,10 @@ data class BookAppointmentRequest(
     @SerializedName("patient_id") val patientId: Int,
     @SerializedName("doctor_id") val doctorId: Int,
     @SerializedName("slot_id") val slotId: Int,
-    @SerializedName("consultation_type") val consultationType: String
+    @SerializedName("consultation_type") val consultationType: String,
+    @SerializedName("illness_name") val illnessName: String = "",
+    @SerializedName("illness_description") val illnessDescription: String = "",
+    @SerializedName("precautions") val precautions: String = ""
 )
 
 data class BookAppointmentData(
@@ -123,6 +135,24 @@ data class RescheduleRequest(
     @SerializedName("new_date") val newDate: String,
     @SerializedName("new_time") val newTime: String,
     val reason: String = ""
+)
+
+data class SubmitAdviceRequest(
+    @SerializedName("appointment_id") val appointmentId: Int,
+    @SerializedName("doctor_advice") val doctorAdvice: String
+)
+
+data class UpdateSlotsRequest(
+    @SerializedName("doctor_id") val doctorId: Int,
+    @SerializedName("available_slots") val availableSlots: List<Int>,
+    @SerializedName("dynamic_timings") val dynamicTimings: Boolean
+)
+
+data class CreateCustomSlotsRequest(
+    @SerializedName("doctor_id") val doctorId: Int,
+    @SerializedName("apply_to") val applyTo: String,
+    @SerializedName("target_date") val targetDate: String,
+    @SerializedName("timings") val timings: List<String>
 )
 
 // ── Notification ──────────────────────────────────────────────────────────────

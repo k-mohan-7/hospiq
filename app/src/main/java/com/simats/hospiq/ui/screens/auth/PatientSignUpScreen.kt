@@ -27,7 +27,7 @@ import com.simats.hospiq.viewmodels.AuthViewModel
 @Composable
 fun PatientSignUpScreen(
     authViewModel: AuthViewModel,
-    onSignUpSuccess: (token: String, userId: Int, role: String, name: String) -> Unit,
+    onSignUpSuccess: (token: String, userId: Int, role: String, name: String, hospitalId: Int?, phone: String?, profilePhoto: String?, doctorId: Int?) -> Unit,
     onBackClick: () -> Unit,
     onNavigateToLogin: (() -> Unit)? = null
 ) {
@@ -132,8 +132,8 @@ fun PatientSignUpScreen(
 
                     Button(
                         onClick = {
-                            authViewModel.registerPatient(fullName, email, phone, password) { token, userId, role, name ->
-                                onSignUpSuccess(token, userId, role, name)
+                            authViewModel.registerPatient(fullName, email, phone, password) { token, userId, role, name, hospitalId, phoneVal, profilePhoto, doctorId ->
+                                onSignUpSuccess(token, userId, role, name, hospitalId, phoneVal, profilePhoto, doctorId)
                             }
                         },
                         enabled = !authViewModel.isLoading,

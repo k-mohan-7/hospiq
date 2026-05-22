@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.simats.hospiq.network.RetrofitInstance
 import com.simats.hospiq.network.models.Doctor
 import com.simats.hospiq.network.models.Hospital
-import com.simats.hospiq.utils.DemoData
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -44,19 +43,14 @@ class HospitalViewModel : ViewModel() {
                         topRatedHospitals = hospitals.sortedByDescending { it.avgRating }
                     )
                 } else {
-                    fallbackToDemo()
+                    _listState.value = HospitalUiState.Error(
+                        response.body()?.message ?: "Failed to load hospitals"
+                    )
                 }
             } catch (e: Exception) {
-                fallbackToDemo()
+                _listState.value = HospitalUiState.Error(e.localizedMessage ?: "Network error")
             }
         }
-    }
-
-    private fun fallbackToDemo() {
-        _listState.value = HospitalUiState.Success(
-            nearbyHospitals = DemoData.hospitals.take(3),
-            topRatedHospitals = DemoData.hospitals
-        )
     }
 
     fun loadHospitalDetail(hospitalId: Int) {
@@ -73,14 +67,7 @@ class HospitalViewModel : ViewModel() {
                     _detailState.value = HospitalDetailState.Error("Hospital not found")
                 }
             } catch (e: Exception) {
-                // Fallback to demo data
-                val hospital = DemoData.hospitals.find { it.id == hospitalId }
-                val doctors = DemoData.doctors.filter { it.hospitalId == hospitalId }
-                if (hospital != null) {
-                    _detailState.value = HospitalDetailState.Success(hospital, doctors)
-                } else {
-                    _detailState.value = HospitalDetailState.Error(e.localizedMessage ?: "Error")
-                }
+                _detailState.value = HospitalDetailState.Error(e.localizedMessage ?: "Error loading hospital")
             }
         }
     }

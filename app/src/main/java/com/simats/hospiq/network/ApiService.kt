@@ -94,6 +94,18 @@ interface ApiService {
     @POST("appointments/reschedule.php")
     suspend fun rescheduleAppointment(@Body body: RescheduleRequest): Response<ApiResponse<Unit>>
 
+    @POST("appointments/cancel.php")
+    suspend fun cancelAppointment(@Body body: AppointmentActionRequest): Response<ApiResponse<Unit>>
+
+    @POST("appointments/submit_advice.php")
+    suspend fun submitDoctorAdvice(@Body body: SubmitAdviceRequest): Response<ApiResponse<Unit>>
+
+    @POST("doctors/update_slots.php")
+    suspend fun updateDoctorSlots(@Body body: UpdateSlotsRequest): Response<ApiResponse<Unit>>
+
+    @POST("slots/create_custom_slots.php")
+    suspend fun createCustomSlots(@Body body: CreateCustomSlotsRequest): Response<ApiResponse<Unit>>
+
     // ── Notifications ─────────────────────────────────────────────────────────
     @GET("notifications/get.php")
     suspend fun getNotifications(@Query("user_id") userId: Int): Response<ApiResponse<NotificationListData>>

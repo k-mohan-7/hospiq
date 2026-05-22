@@ -7,7 +7,8 @@ import com.simats.hospiq.network.models.Appointment
 import com.simats.hospiq.network.models.AppointmentActionRequest
 import com.simats.hospiq.network.models.BookAppointmentRequest
 import com.simats.hospiq.network.models.RescheduleRequest
-import com.simats.hospiq.utils.DemoData
+import com.simats.hospiq.network.models.SubmitAdviceRequest
+
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -42,10 +43,12 @@ class AppointmentViewModel : ViewModel() {
                         response.body()!!.data?.appointments ?: emptyList()
                     )
                 } else {
-                    _appointmentsState.value = AppointmentListState.Success(DemoData.patientAppointments)
+                    _appointmentsState.value = AppointmentListState.Error(
+                        response.body()?.message ?: "Failed to load appointments"
+                    )
                 }
             } catch (e: Exception) {
-                _appointmentsState.value = AppointmentListState.Success(DemoData.patientAppointments)
+                _appointmentsState.value = AppointmentListState.Error(e.localizedMessage ?: "Network error")
             }
         }
     }
@@ -60,55 +63,92 @@ class AppointmentViewModel : ViewModel() {
                         response.body()!!.data?.appointments ?: emptyList()
                     )
                 } else {
-                    _appointmentsState.value = AppointmentListState.Success(DemoData.doctorAppointments)
+                    _appointmentsState.value = AppointmentListState.Error(
+                        response.body()?.message ?: "Failed to load appointments"
+                    )
                 }
             } catch (e: Exception) {
-                _appointmentsState.value = AppointmentListState.Success(DemoData.doctorAppointments)
+                _appointmentsState.value = AppointmentListState.Error(e.localizedMessage ?: "Network error")
             }
         }
     }
 
     fun bookAppointment(
-        patientId: Int, doctorId: Int, slotId: Int, consultationType: String
+        patientId: Int, doctorId: Int, slotId: Int, consultationType: String,
+        date: String = "",
+        illnessName: String = "", illnessDescription: String = "", precautions: String = ""
     ) {
         viewModelScope.launch {
             _bookingState.value = BookingState.Loading
             try {
                 val response = RetrofitInstance.api.bookAppointment(
-                    BookAppointmentRequest(patientId, doctorId, slotId, consultationType)
+                    BookAppointmentRequest(
+                        patientId = patientId,
+                        doctorId = doctorId,
+                        slotId = slotId,
+                        consultationType = consultationType,
+                        illnessName = illnessName,
+                        illnessDescription = illnessDescription,
+                        precautions = precautions
+                    )
                 )
                 if (response.isSuccessful && response.body()?.success == true) {
                     val apptId = response.body()!!.data?.appointmentId ?: 0
                     _bookingState.value = BookingState.Success(apptId)
                 } else {
-                    _bookingState.value = BookingState.Error(response.body()?.message ?: "Booking failed")
+                    _bookingState.value = BookingState.Error(
+                        response.body()?.message ?: "Booking failed. Please try again."
+                    )
                 }
             } catch (e: Exception) {
-                _bookingState.value = BookingState.Error("Network error: ${e.localizedMessage}")
+                _bookingState.value = BookingState.Error(
+                    e.localizedMessage ?: "Network error. Please check your connection."
+                )
             }
         }
     }
 
     fun acceptAppointment(appointmentId: Int, onDone: () -> Unit = {}) {
         viewModelScope.launch {
-            try { RetrofitInstance.api.acceptAppointment(AppointmentActionRequest(appointmentId)) }
-            catch (_: Exception) {}
+            try {
+                RetrofitInstance.api.acceptAppointment(AppointmentActionRequest(appointmentId))
+            } catch (_: Exception) {}
             onDone()
         }
     }
 
     fun rejectAppointment(appointmentId: Int, onDone: () -> Unit = {}) {
         viewModelScope.launch {
-            try { RetrofitInstance.api.rejectAppointment(AppointmentActionRequest(appointmentId)) }
-            catch (_: Exception) {}
+            try {
+                RetrofitInstance.api.rejectAppointment(AppointmentActionRequest(appointmentId))
+            } catch (_: Exception) {}
             onDone()
         }
     }
 
     fun rescheduleAppointment(appointmentId: Int, newDate: String, newTime: String, onDone: () -> Unit = {}) {
         viewModelScope.launch {
-            try { RetrofitInstance.api.rescheduleAppointment(RescheduleRequest(appointmentId, newDate, newTime)) }
-            catch (_: Exception) {}
+            try {
+                RetrofitInstance.api.rescheduleAppointment(RescheduleRequest(appointmentId, newDate, newTime))
+            } catch (_: Exception) {}
+            onDone()
+        }
+    }
+
+    fun cancelAppointment(appointmentId: Int, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                RetrofitInstance.api.cancelAppointment(AppointmentActionRequest(appointmentId))
+            } catch (_: Exception) {}
+            onDone()
+        }
+    }
+
+    fun submitDoctorAdvice(appointmentId: Int, advice: String, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                RetrofitInstance.api.submitDoctorAdvice(SubmitAdviceRequest(appointmentId, advice))
+            } catch (_: Exception) {}
             onDone()
         }
     }

@@ -31,9 +31,13 @@ import com.simats.hospiq.viewmodels.AppointmentViewModel
 import com.simats.hospiq.viewmodels.BookingState
 import com.simats.hospiq.viewmodels.DoctorProfileState
 import com.simats.hospiq.viewmodels.DoctorViewModel
-
-private val weekDays = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
-private val weekDates = listOf(23, 24, 25, 26, 27, 28)
+import coil.compose.AsyncImage
+import com.simats.hospiq.network.ApiConfig
+import androidx.compose.ui.platform.LocalContext
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import android.app.DatePickerDialog
+import java.util.Calendar
 
 @Composable
 fun DoctorProfileScreen(
@@ -66,13 +70,56 @@ fun DoctorProfileScreen(
         }
     }
 
-    var selectedDateIndex by remember { mutableStateOf(1) }
+    val today = remember { LocalDate.now() }
+    val dynamicDates = remember {
+        (0..5).map { offset ->
+            today.plusDays(offset.toLong())
+        }
+    }
+    val dayLabels = dynamicDates.map { date ->
+        date.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.uppercase() }
+    }
+    val dateLabels = dynamicDates.map { date ->
+        date.dayOfMonth
+    }
+    val formattedDates = dynamicDates.map { date ->
+        date.format(DateTimeFormatter.ISO_DATE)
+    }
+
+    var selectedDateString by remember { mutableStateOf(formattedDates.firstOrNull() ?: "2026-05-22") }
     var selectedSlotId by remember { mutableStateOf<Int?>(null) }
-    var consultationType by remember { mutableStateOf("video") }
+    var consultationType by remember { mutableStateOf("in_person") }
+
+    val context = LocalContext.current
+    fun showCustomDatePicker() {
+        val calendar = Calendar.getInstance()
+        val datePickerDialog = DatePickerDialog(
+            context,
+            { _, year, month, dayOfMonth ->
+                val chosenDate = LocalDate.of(year, month + 1, dayOfMonth)
+                val chosenDateStr = chosenDate.format(DateTimeFormatter.ISO_DATE)
+                selectedDateString = chosenDateStr
+                selectedSlotId = null
+                doctorViewModel.loadSlotsForDate(doctorId, chosenDateStr)
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        )
+        datePickerDialog.datePicker.minDate = System.currentTimeMillis() - 1000
+        datePickerDialog.show()
+    }
 
     val selectedSlot = slots.find { it.id == selectedSlotId }
-    val morningSlots = slots.filter { it.id <= 6 }
-    val afternoonSlots = slots.filter { it.id > 6 }
+    
+    // RESTRICT slots using doctor's availability slots if enabled
+    val filteredSlots = if (DemoData.dynamicTimingsEnabled) {
+        slots.filter { DemoData.activeSlots.contains(it.id) }
+    } else {
+        slots
+    }
+    val morningSlots = filteredSlots.filter { it.id <= 6 }
+    val afternoonSlots = filteredSlots.filter { it.id > 6 }
 
     Scaffold(
         containerColor = AppBackground,
@@ -111,10 +158,6 @@ fun DoctorProfileScreen(
                                 color = if (selectedSlot != null) DeepTeal else CoralOrange
                             )
                         }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text("Consultation Fee", fontSize = 12.sp, color = SlateGray)
-                            Text("$120.00", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CharcoalText)
-                        }
                     }
                     Spacer(Modifier.height(12.dp))
                     Button(
@@ -124,7 +167,8 @@ fun DoctorProfileScreen(
                                     patientId = sessionManager.getUserId(),
                                     doctorId = doctorId,
                                     slotId = slotId,
-                                    consultationType = consultationType
+                                    consultationType = consultationType,
+                                    date = selectedDateString
                                 )
                             }
                         },
@@ -138,9 +182,9 @@ fun DoctorProfileScreen(
                         if (bookingState is BookingState.Loading) {
                             CircularProgressIndicator(color = Color.White, modifier = Modifier.size(22.dp))
                         } else {
-                        Icon(Icons.Default.DateRange, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Confirm Appointment", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Icon(Icons.Default.DateRange, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Confirm Appointment", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         }
                     }
                 }
@@ -165,15 +209,26 @@ fun DoctorProfileScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     // Avatar
-                    Box(
-                        modifier = Modifier
-                            .size(80.dp)
-                            .background(IndigoLight, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val initials = doctor.name.trim().split(" ")
-                            .take(2).joinToString("") { it.first().uppercaseChar().toString() }
-                        Text(initials, color = IndigoDoctor, fontWeight = FontWeight.Bold, fontSize = 28.sp)
+                    if (!doctor.photo.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = "${ApiConfig.IMAGE_BASE_URL}${doctor.photo}",
+                            contentDescription = doctor.name,
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clip(CircleShape),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(80.dp)
+                                .background(IndigoLight, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val initials = doctor.name.trim().split(" ")
+                                .take(2).joinToString("") { it.first().uppercaseChar().toString() }
+                            Text(initials, color = IndigoDoctor, fontWeight = FontWeight.Bold, fontSize = 28.sp)
+                        }
                     }
                     Spacer(Modifier.height(12.dp))
                     Text(doctor.name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = CharcoalText)
@@ -202,14 +257,32 @@ fun DoctorProfileScreen(
                 colors = CardDefaults.cardColors(containerColor = SurfaceWhite)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Select Date", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = CharcoalText)
-                        Text("Oct 2025", fontSize = 13.sp, color = DeepTeal, fontWeight = FontWeight.SemiBold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Select Date", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = CharcoalText)
+                            val parsedDate = try {
+                                LocalDate.parse(selectedDateString).format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))
+                            } catch (_: Exception) {
+                                selectedDateString
+                            }
+                            Text(parsedDate, fontSize = 13.sp, color = DeepTeal, fontWeight = FontWeight.SemiBold)
+                        }
+                        IconButton(onClick = { showCustomDatePicker() }) {
+                            Icon(
+                                imageVector = Icons.Default.CalendarMonth,
+                                contentDescription = "Choose Custom Date",
+                                tint = DeepTeal
+                            )
+                        }
                     }
                     Spacer(Modifier.height(12.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        itemsIndexed(weekDays) { index, day ->
-                            val isSelected = selectedDateIndex == index
+                        itemsIndexed(formattedDates) { index, dateStr ->
+                            val isSelected = selectedDateString == dateStr
                             Column(
                                 modifier = Modifier
                                     .size(52.dp)
@@ -218,27 +291,23 @@ fun DoctorProfileScreen(
                                         RoundedCornerShape(14.dp)
                                     )
                                     .border(1.dp, if (isSelected) DeepTeal else BorderGray, RoundedCornerShape(14.dp))
-                                    .clickable { selectedDateIndex = index; selectedSlotId = null },
+                                    .clickable { 
+                                        selectedDateString = dateStr
+                                        selectedSlotId = null
+                                        doctorViewModel.loadSlotsForDate(doctorId, dateStr)
+                                    },
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
-                                Text(day, fontSize = 11.sp, color = if (isSelected) Color.White else SlateGray)
+                                Text(dayLabels[index], fontSize = 11.sp, color = if (isSelected) Color.White else SlateGray)
                                 Text(
-                                    "${weekDates[index]}",
+                                    "${dateLabels[index]}",
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isSelected) Color.White else CharcoalText
                                 )
                             }
                         }
-                    }
-                    Spacer(Modifier.height(16.dp))
-                    // Consultation type
-                    Text("Consultation Type", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = CharcoalText)
-                    Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        ConsultTypeChip("📹 Video", "video", consultationType) { consultationType = it }
-                        ConsultTypeChip("🏥 In-Clinic", "in_clinic", consultationType) { consultationType = it }
                     }
                     Spacer(Modifier.height(16.dp))
                     // Slots
@@ -253,6 +322,9 @@ fun DoctorProfileScreen(
                     SlotGrid(slots = afternoonSlots, selectedSlotId = selectedSlotId, onSlotClick = { selectedSlotId = it })
                 }
             }
+
+            Spacer(Modifier.height(16.dp))
+
             Spacer(Modifier.height(16.dp))
         }
     }

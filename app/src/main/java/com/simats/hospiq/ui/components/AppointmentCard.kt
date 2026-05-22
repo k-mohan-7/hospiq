@@ -1,6 +1,7 @@
 package com.simats.hospiq.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +25,7 @@ fun AppointmentCard(
     action1Label: String? = null,
     onAction2: (() -> Unit)? = null,
     action2Label: String? = null,
+    onCardClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val barColor = when (appointment.status.lowercase()) {
@@ -34,13 +36,19 @@ fun AppointmentCard(
         else         -> SlateGray
     }
 
+    val cardModifier = if (onCardClick != null) {
+        modifier.fillMaxWidth().clickable { onCardClick() }
+    } else {
+        modifier.fillMaxWidth()
+    }
+
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = cardModifier,
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceWhite)
     ) {
-        Row {
+        Row(modifier = Modifier.height(IntrinsicSize.Max)) {
             // Colored left bar
             Box(
                 modifier = Modifier
@@ -88,10 +96,37 @@ fun AppointmentCard(
                 HorizontalDivider(color = BorderGray, thickness = 0.5.dp)
                 Spacer(Modifier.height(10.dp))
 
-                Row {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("📅 ${appointment.date}", fontSize = 13.sp, color = SlateGray)
                     Spacer(Modifier.width(12.dp))
                     Text("🕐 ${appointment.time}", fontSize = 13.sp, color = SlateGray)
+                }
+
+                if (!isDoctor) {
+                    Spacer(Modifier.height(8.dp))
+                    val status = appointment.doctorStatus ?: "available"
+                    val (statusColor, statusLabel, statusEmoji) = when (status.lowercase()) {
+                        "available" -> Triple(Color(0xFF4CAF50), "Available", "🟢")
+                        "busy" -> Triple(Color(0xFFFF9800), "Busy", "🕐")
+                        "in_surgery" -> Triple(Color(0xFFE91E63), "In Surgery", "🔴")
+                        else -> Triple(Color(0xFF9E9E9E), "Offline", "⚫")
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .background(statusColor.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(statusEmoji, fontSize = 11.sp)
+                            Text(
+                                text = "Doctor is $statusLabel",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = statusColor
+                            )
+                        }
+                    }
                 }
 
                 if (onAction1 != null && action1Label != null) {

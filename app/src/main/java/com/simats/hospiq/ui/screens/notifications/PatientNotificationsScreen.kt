@@ -82,9 +82,13 @@ fun PatientNotificationsScreen(
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("🏥", fontSize = 22.sp)
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(id = com.simats.hospiq.R.drawable.app_logo),
+                    contentDescription = "Logo",
+                    modifier = Modifier.size(34.dp)
+                )
                 Spacer(Modifier.width(8.dp))
-                Text("Notifications", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = CharcoalText, modifier = Modifier.weight(1f))
+                Text("HospiQ", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DeepTeal, modifier = Modifier.weight(1f))
                 Box(
                     modifier = Modifier
                         .size(36.dp)

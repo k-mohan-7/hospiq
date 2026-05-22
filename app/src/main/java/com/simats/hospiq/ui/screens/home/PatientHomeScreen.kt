@@ -24,11 +24,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.rememberInfiniteTransition
 import com.simats.hospiq.network.ApiConfig
 import com.simats.hospiq.navigation.Screen
 import com.simats.hospiq.ui.components.*
 import com.simats.hospiq.ui.theme.*
-import com.simats.hospiq.utils.DemoData
+import com.simats.hospiq.network.models.Appointment
 import com.simats.hospiq.utils.SessionManager
 import com.simats.hospiq.viewmodels.HospitalUiState
 import com.simats.hospiq.viewmodels.HospitalViewModel
@@ -41,6 +43,7 @@ import com.simats.hospiq.viewmodels.HospitalViewModel
 fun PatientHomeScreen(
     sessionManager: SessionManager,
     hospitalViewModel: HospitalViewModel,
+    appointmentViewModel: com.simats.hospiq.viewmodels.AppointmentViewModel,
     onNavigateToHospitalDetail: (Int) -> Unit,
     onNavigateToSearch: () -> Unit,
     onNavigateToAppointments: () -> Unit,
@@ -52,15 +55,24 @@ fun PatientHomeScreen(
     val hospitalState by hospitalViewModel.listState.collectAsState()
     val nearbyHospitals = when (val s = hospitalState) {
         is HospitalUiState.Success -> s.nearbyHospitals
-        else -> DemoData.hospitals.take(3)
+        else -> emptyList()
     }
     val topRatedHospitals = when (val s = hospitalState) {
         is HospitalUiState.Success -> s.topRatedHospitals
-        else -> DemoData.hospitals
+        else -> emptyList()
     }
-    val unreadCount = DemoData.notifications.count { !it.isRead }
+    val unreadCount = 0 // Will be driven by notification badge from backend
 
-    LaunchedEffect(Unit) { hospitalViewModel.loadHospitals() }
+    val appointmentsState by appointmentViewModel.appointmentsState.collectAsState()
+    val appointments = when (val state = appointmentsState) {
+        is com.simats.hospiq.viewmodels.AppointmentListState.Success -> state.appointments
+        else -> emptyList()
+    }
+
+    LaunchedEffect(Unit) {
+        hospitalViewModel.loadHospitals()
+        appointmentViewModel.loadPatientAppointments(sessionManager.getUserId())
+    }
 
     Scaffold(
         containerColor = AppBackground,
@@ -79,12 +91,22 @@ fun PatientHomeScreen(
             )
         }
     ) { innerPadding ->
-        LazyColumn(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 24.dp)
-        ) {
+        if (hospitalState is HospitalUiState.Loading || appointmentsState is com.simats.hospiq.viewmodels.AppointmentListState.Loading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = DeepTeal)
+            }
+        } else {
+            LazyColumn(
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentPadding = PaddingValues(bottom = 24.dp)
+            ) {
             // ── Top Bar ──────────────────────────────────────────────────
             item {
                 HomeTopBar(
@@ -128,6 +150,61 @@ fun PatientHomeScreen(
                 }
             }
 
+            // ── Recent Appointments section ──────────────────────────────
+            val activeAppointments = appointments.filter { it.status != "cancelled" && it.status != "rejected" }
+            item {
+                SectionHeader(
+                    title = "Recent appointments",
+                    actionLabel = "See All",
+                    onActionClick = onNavigateToAppointments,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+            }
+            if (activeAppointments.isEmpty()) {
+                item {
+                    Text(
+                        text = "No recent appointments",
+                        color = SlateGray,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            } else {
+                item {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(activeAppointments) { appt ->
+                            RecentAppointmentItem(
+                                appointment = appt,
+                                onNavigateToAppointments = onNavigateToAppointments
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── Doctor's Advice & Prescriptions section ───────────────────
+            val adviceAppointments = appointments.filter { !it.doctorAdvice.isNullOrBlank() }
+            if (adviceAppointments.isNotEmpty()) {
+                item {
+                    SectionHeader(
+                        title = "Doctor's advice & prescriptions",
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                    )
+                }
+                items(adviceAppointments) { appt ->
+                    DoctorAdviceCard(
+                        appointment = appt,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
+                }
+            }
+
             // ── Browse by Specialty ──────────────────────────────────────
             item {
                 SectionHeader(
@@ -160,6 +237,7 @@ fun PatientHomeScreen(
             }
         }
     }
+}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -415,5 +493,224 @@ fun SpecialtyGridItem(
             fontWeight = FontWeight.Medium,
             color = CharcoalText
         )
+    }
+}
+
+@Composable
+fun StatusPulseIndicator(status: String) {
+    val color = when (status.lowercase()) {
+        "available" -> androidx.compose.ui.graphics.Color(0xFF4CAF50)
+        "busy" -> androidx.compose.ui.graphics.Color(0xFFFF9800)
+        "in_surgery" -> androidx.compose.ui.graphics.Color(0xFFE91E63)
+        else -> androidx.compose.ui.graphics.Color(0xFF9E9E9E)
+    }
+    val label = when (status.lowercase()) {
+        "available" -> "Available"
+        "busy" -> "Busy"
+        "in_surgery" -> "In Surgery"
+        else -> "Offline"
+    }
+
+    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1.0f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(1000, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        )
+    )
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier
+            .background(color.copy(alpha = 0.12f), RoundedCornerShape(20.dp))
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = alpha))
+            )
+            Box(
+                modifier = Modifier
+                    .size(14.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = 0.15f * alpha))
+                    .align(Alignment.Center)
+            )
+        }
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = color
+        )
+    }
+}
+
+@Composable
+fun RecentAppointmentItem(
+    appointment: Appointment,
+    onNavigateToAppointments: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier
+            .width(280.dp)
+            .clickable { onNavigateToAppointments() }
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(54.dp)
+                    .background(SoftTeal, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = appointment.doctorName.takeLast(2).uppercase(),
+                    color = DeepTeal,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = appointment.doctorName,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = CharcoalText
+                )
+                Text(
+                    text = appointment.specialization.replaceFirstChar { it.uppercase() },
+                    fontSize = 12.sp,
+                    color = SlateGray
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CalendarToday, contentDescription = "Date", tint = DeepTeal, modifier = Modifier.size(12.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(appointment.date, fontSize = 11.sp, color = CharcoalText)
+                    Spacer(Modifier.width(8.dp))
+                    Icon(Icons.Default.AccessTime, contentDescription = "Time", tint = DeepTeal, modifier = Modifier.size(12.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(appointment.time, fontSize = 11.sp, color = CharcoalText)
+                }
+                Spacer(Modifier.height(6.dp))
+                StatusPulseIndicator(status = appointment.doctorStatus ?: "available")
+            }
+        }
+    }
+}
+
+@Composable
+fun DoctorAdviceCard(
+    appointment: Appointment,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SoftTeal.copy(alpha = 0.4f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, DeepTeal.copy(alpha = 0.3f)),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MedicalServices,
+                        contentDescription = "Medical Service",
+                        tint = DeepTeal,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "Advice from ${appointment.doctorName}",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = CharcoalText
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .background(DeepTeal.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = appointment.illnessName?.ifEmpty { "General Consult" } ?: "General Consult",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = DeepTeal
+                    )
+                }
+            }
+
+            HorizontalDivider(color = DeepTeal.copy(alpha = 0.1f))
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "Illness details:",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SlateGray
+                )
+                Text(
+                    text = appointment.illnessDescription?.ifEmpty { "No description provided." } ?: "No description provided.",
+                    fontSize = 12.sp,
+                    color = CharcoalText
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(SurfaceWhite.copy(alpha = 0.7f), RoundedCornerShape(10.dp))
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Favorite,
+                        contentDescription = "Advice",
+                        tint = CoralOrange,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = "Treatment & Prescription:",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CoralOrange
+                    )
+                }
+                Text(
+                    text = appointment.doctorAdvice ?: "",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = CharcoalText
+                )
+            }
+        }
     }
 }

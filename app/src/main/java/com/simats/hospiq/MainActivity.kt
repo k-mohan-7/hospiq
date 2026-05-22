@@ -79,7 +79,11 @@ fun HospiQNavHost(
     NavHost(
         navController = navController,
         startDestination = Screen.Splash.route,
-        modifier = modifier
+        modifier = modifier,
+        enterTransition = { androidx.compose.animation.EnterTransition.None },
+        exitTransition = { androidx.compose.animation.ExitTransition.None },
+        popEnterTransition = { androidx.compose.animation.EnterTransition.None },
+        popExitTransition = { androidx.compose.animation.ExitTransition.None }
     ) {
         // ── Splash ──────────────────────────────────────────────────────────
         composable(Screen.Splash.route) {
@@ -112,8 +116,8 @@ fun HospiQNavHost(
         composable(Screen.PatientSignUp.route) {
             PatientSignUpScreen(
                 authViewModel = authViewModel,
-                onSignUpSuccess = { token, userId, role, name ->
-                    sessionManager.saveSession(token, userId, role, name)
+                onSignUpSuccess = { token, userId, role, name, hospitalId, phone, profilePhoto, doctorId ->
+                    sessionManager.saveSession(token, userId, role, name, hospitalId, phone, profilePhoto, doctorId)
                     navController.navigate(Screen.PatientHome.route) { popUpTo(0) }
                 },
                 onBackClick = { navController.popBackStack() },
@@ -124,8 +128,8 @@ fun HospiQNavHost(
         composable(Screen.PatientLogin.route) {
             PatientLoginScreen(
                 authViewModel = authViewModel,
-                onLoginSuccess = { token, userId, role, name ->
-                    sessionManager.saveSession(token, userId, role, name)
+                onLoginSuccess = { token, userId, role, name, hospitalId, phone, profilePhoto, doctorId ->
+                    sessionManager.saveSession(token, userId, role, name, hospitalId, phone, profilePhoto, doctorId)
                     // ✅ Route based on actual role from server
                     if (role == "doctor") {
                         navController.navigate(Screen.DoctorDashboard.route) { popUpTo(0) }
@@ -141,8 +145,8 @@ fun HospiQNavHost(
         composable(Screen.DoctorRegister.route) {
             DoctorRegisterScreen(
                 authViewModel = authViewModel,
-                onRegistrationComplete = { token, userId, role, name ->
-                    sessionManager.saveSession(token, userId, role, name)
+                onRegistrationComplete = { token, userId, role, name, hospitalId, phone, profilePhoto, doctorId ->
+                    sessionManager.saveSession(token, userId, role, name, hospitalId, phone, profilePhoto, doctorId)
                     navController.navigate(Screen.DoctorDashboard.route) { popUpTo(0) }
                 },
                 onBackClick = { navController.popBackStack() }
@@ -154,6 +158,7 @@ fun HospiQNavHost(
             PatientHomeScreen(
                 sessionManager = sessionManager,
                 hospitalViewModel = hospitalViewModel,
+                appointmentViewModel = appointmentViewModel,
                 onNavigateToHospitalDetail = { id -> navController.navigate(hospitalDetailRoute(id)) },
                 onNavigateToSearch = { navController.navigate(Screen.Search.route) },
                 onNavigateToAppointments = { navController.navigate(Screen.PatientAppointments.route) },
@@ -258,6 +263,7 @@ fun HospiQNavHost(
                 sessionManager = sessionManager,
                 authViewModel = authViewModel,
                 appointmentViewModel = appointmentViewModel,
+                doctorViewModel = doctorViewModel,
                 onLogout = {
                     sessionManager.clearSession()
                     navController.navigate(Screen.Onboarding.route) { popUpTo(0) }
@@ -326,7 +332,8 @@ fun HospiQNavHost(
                 onNavigateToHome = { navController.navigate(Screen.DoctorDashboard.route) { popUpTo(0) } },
                 onNavigateToAppointments = { navController.navigate(Screen.DoctorAppointments.route) },
                 onNavigateToNotifications = { navController.navigate(Screen.DoctorNotifications.route) },
-                onNavigateToProfile = { navController.navigate(Screen.PatientProfile.route) }
+                onNavigateToProfile = { navController.navigate(Screen.PatientProfile.route) },
+                onNavigateToDoctorProfile = { doctorId -> navController.navigate(doctorProfileRoute(doctorId)) }
             )
         }
 

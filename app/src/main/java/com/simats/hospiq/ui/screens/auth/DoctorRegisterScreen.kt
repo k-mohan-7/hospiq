@@ -35,7 +35,7 @@ import coil.compose.AsyncImage
 @Composable
 fun DoctorRegisterScreen(
     authViewModel: AuthViewModel,
-    onRegistrationComplete: (token: String, userId: Int, role: String, name: String) -> Unit,
+    onRegistrationComplete: (token: String, userId: Int, role: String, name: String, hospitalId: Int?, phone: String?, profilePhoto: String?, doctorId: Int?) -> Unit,
     onBackClick: () -> Unit
 ) {
     var step by remember { mutableStateOf(1) }
@@ -519,8 +519,8 @@ fun DoctorRegisterScreen(
                                                 profilePhotoName = profilePhotoName,
                                                 hospitalPhotoBytes = hospitalPhotoBytes,
                                                 hospitalPhotoName = hospitalPhotoName
-                                            ) { token, userId, role, name ->
-                                                onRegistrationComplete(token, userId, role, name)
+                                            ) { token, userId, role, name, hospitalId, phoneVal, profilePhoto, doctorId ->
+                                                onRegistrationComplete(token, userId, role, name, hospitalId, phoneVal, profilePhoto, doctorId)
                                             }
                                         }
                                     },

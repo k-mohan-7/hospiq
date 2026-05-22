@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -21,6 +22,8 @@ import com.simats.hospiq.ui.theme.*
 import com.simats.hospiq.utils.DemoData
 import com.simats.hospiq.utils.SessionManager
 import com.simats.hospiq.viewmodels.AppointmentViewModel
+import coil.compose.AsyncImage
+import com.simats.hospiq.network.ApiConfig
 
 @Composable
 fun AppointmentConfirmScreen(
@@ -92,15 +95,26 @@ fun AppointmentConfirmScreen(
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(52.dp)
-                                .background(IndigoLight, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            val initials = appointment.doctorName.trim().split(" ")
-                                .take(2).joinToString("") { it.first().uppercaseChar().toString() }
-                            Text(initials, color = IndigoDoctor, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        if (!doctor.photo.isNullOrEmpty()) {
+                            AsyncImage(
+                                model = "${ApiConfig.IMAGE_BASE_URL}${doctor.photo}",
+                                contentDescription = doctor.name,
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .clip(CircleShape),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .background(IndigoLight, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                val initials = appointment.doctorName.trim().split(" ")
+                                    .take(2).joinToString("") { it.first().uppercaseChar().toString() }
+                                Text(initials, color = IndigoDoctor, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            }
                         }
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
@@ -143,19 +157,12 @@ fun AppointmentConfirmScreen(
 
                     Spacer(Modifier.height(14.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.VideoCall, null, tint = DeepTeal, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.LocationOn, null, tint = DeepTeal, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            if (appointment.consultationType == "video_call") "Video Consultation" else "In-Person",
+                            "In-Person Consultation",
                             fontSize = 14.sp, color = CharcoalText, modifier = Modifier.weight(1f)
                         )
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .background(MintGreen, CircleShape)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text("In-App link sent", fontSize = 12.sp, color = MintGreen, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -186,17 +193,6 @@ fun AppointmentConfirmScreen(
                 Text("Go home", color = CharcoalText, fontWeight = FontWeight.Medium, fontSize = 16.sp)
             }
 
-            Spacer(Modifier.height(24.dp))
-
-            Text(
-                "A confirmation email has been sent to your registered address.",
-                fontSize = 13.sp, color = SlateGray, textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Need to reschedule?",
-                fontSize = 13.sp, color = DeepTeal, fontWeight = FontWeight.SemiBold
-            )
         }
     }
 }

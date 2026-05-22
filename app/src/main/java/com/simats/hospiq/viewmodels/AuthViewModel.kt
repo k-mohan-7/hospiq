@@ -23,7 +23,7 @@ class AuthViewModel : ViewModel() {
     fun login(
         email: String,
         password: String,
-        onSuccess: (token: String, userId: Int, role: String, name: String) -> Unit
+        onSuccess: (token: String, userId: Int, role: String, name: String, hospitalId: Int?, phone: String?, profilePhoto: String?, doctorId: Int?) -> Unit
     ) {
         if (email.isBlank() || password.isBlank()) {
             errorMessage = "Please enter email and password"; return
@@ -34,7 +34,7 @@ class AuthViewModel : ViewModel() {
                 val response = RetrofitInstance.api.login(LoginRequest(email, password))
                 if (response.isSuccessful && response.body()?.success == true) {
                     val data = response.body()!!.data!!
-                    onSuccess(data.token ?: "", data.user_id, data.role, data.name)
+                    onSuccess(data.token ?: "", data.user_id, data.role, data.name, data.hospital_id, data.phone, data.profile_photo, data.doctor_id)
                 } else {
                     errorMessage = response.body()?.message ?: "Login failed. Check credentials."
                 }
@@ -46,7 +46,7 @@ class AuthViewModel : ViewModel() {
 
     fun registerPatient(
         fullName: String, email: String, phone: String, password: String,
-        onSuccess: (token: String, userId: Int, role: String, name: String) -> Unit
+        onSuccess: (token: String, userId: Int, role: String, name: String, hospitalId: Int?, phone: String?, profilePhoto: String?, doctorId: Int?) -> Unit
     ) {
         viewModelScope.launch {
             isLoading = true; errorMessage = null
@@ -56,7 +56,7 @@ class AuthViewModel : ViewModel() {
                 )
                 if (response.isSuccessful && response.body()?.success == true) {
                     val data = response.body()!!.data!!
-                    onSuccess(data.token ?: "", data.user_id, data.role, data.name)
+                    onSuccess(data.token ?: "", data.user_id, data.role, data.name, data.hospital_id, data.phone, data.profile_photo, data.doctor_id)
                 } else {
                     errorMessage = response.body()?.message ?: "Registration failed"
                 }
@@ -79,7 +79,7 @@ class AuthViewModel : ViewModel() {
         profilePhotoName: String?,
         hospitalPhotoBytes: ByteArray?,
         hospitalPhotoName: String?,
-        onSuccess: (token: String, userId: Int, role: String, name: String) -> Unit
+        onSuccess: (token: String, userId: Int, role: String, name: String, hospitalId: Int?, phone: String?, profilePhoto: String?, doctorId: Int?) -> Unit
     ) {
         fun String.toBody() = toRequestBody("text/plain".toMediaTypeOrNull())
         viewModelScope.launch {
@@ -115,7 +115,7 @@ class AuthViewModel : ViewModel() {
                 )
                 if (response.isSuccessful && response.body()?.success == true) {
                     val data = response.body()!!.data!!
-                    onSuccess(data.token ?: "", data.user_id, data.role, data.name)
+                    onSuccess(data.token ?: "", data.user_id, data.role, data.name, data.hospital_id, data.phone, data.profile_photo, data.doctor_id)
                 } else {
                     errorMessage = response.body()?.message ?: "Registration failed"
                 }

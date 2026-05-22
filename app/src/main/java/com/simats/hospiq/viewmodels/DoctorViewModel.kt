@@ -6,7 +6,8 @@ import com.simats.hospiq.network.RetrofitInstance
 import com.simats.hospiq.network.models.Doctor
 import com.simats.hospiq.network.models.DoctorStatusRequest
 import com.simats.hospiq.network.models.TimeSlot
-import com.simats.hospiq.utils.DemoData
+import com.simats.hospiq.network.models.UpdateSlotsRequest
+import com.simats.hospiq.network.models.CreateCustomSlotsRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -23,6 +24,10 @@ class DoctorViewModel : ViewModel() {
     private val _profileState = MutableStateFlow<DoctorProfileState>(DoctorProfileState.Loading)
     val profileState: StateFlow<DoctorProfileState> = _profileState
 
+    // Separate status state so Dashboard can read it without full profile reload
+    private val _doctorStatus = MutableStateFlow("available")
+    val doctorStatus: StateFlow<String> = _doctorStatus
+
     var statusUpdating = MutableStateFlow(false)
 
     fun loadDoctorProfile(doctorId: Int, date: String? = null) {
@@ -33,18 +38,15 @@ class DoctorViewModel : ViewModel() {
                 val docResponse = RetrofitInstance.api.getDoctorProfile(doctorId)
                 val slotResponse = RetrofitInstance.api.getAvailableSlots(doctorId, selectedDate)
                 val doctor = docResponse.body()?.data
-                val slots = slotResponse.body()?.data?.slots ?: DemoData.timeSlots
+                val slots = slotResponse.body()?.data?.slots ?: emptyList()
                 if (doctor != null) {
+                    _doctorStatus.value = doctor.status
                     _profileState.value = DoctorProfileState.Success(doctor, slots)
                 } else {
-                    val fallback = DemoData.doctors.find { it.id == doctorId }
-                    if (fallback != null) _profileState.value = DoctorProfileState.Success(fallback, DemoData.timeSlots)
-                    else _profileState.value = DoctorProfileState.Error("Doctor not found")
+                    _profileState.value = DoctorProfileState.Error("Doctor not found")
                 }
             } catch (e: Exception) {
-                val fallback = DemoData.doctors.find { it.id == doctorId }
-                if (fallback != null) _profileState.value = DoctorProfileState.Success(fallback, DemoData.timeSlots)
-                else _profileState.value = DoctorProfileState.Error(e.localizedMessage ?: "Error")
+                _profileState.value = DoctorProfileState.Error(e.localizedMessage ?: "Error loading profile")
             }
         }
     }
@@ -67,8 +69,57 @@ class DoctorViewModel : ViewModel() {
             statusUpdating.value = true
             try {
                 RetrofitInstance.api.updateDoctorStatus(DoctorStatusRequest(doctorId, status))
+                // Update local state immediately for responsive UI
+                _doctorStatus.value = status
+                // Also update profile state if loaded
+                val current = _profileState.value
+                if (current is DoctorProfileState.Success) {
+                    _profileState.value = current.copy(doctor = current.doctor.copy(status = status))
+                }
             } catch (_: Exception) {}
             statusUpdating.value = false
+            onDone()
+        }
+    }
+
+    fun updateDoctorSlots(
+        doctorId: Int,
+        slots: List<Int>,
+        dynamicTimings: Boolean,
+        activeDates: List<String>,
+        onDone: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            try {
+                RetrofitInstance.api.updateDoctorSlots(
+                    UpdateSlotsRequest(
+                        doctorId = doctorId,
+                        availableSlots = slots,
+                        dynamicTimings = dynamicTimings
+                    )
+                )
+            } catch (_: Exception) {}
+            onDone()
+        }
+    }
+    fun createCustomSlots(
+        doctorId: Int,
+        applyTo: String, // "all_days" or "specific_date"
+        targetDate: String,
+        timings: List<String>,
+        onDone: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            try {
+                RetrofitInstance.api.createCustomSlots(
+                    CreateCustomSlotsRequest(
+                        doctorId = doctorId,
+                        applyTo = applyTo,
+                        targetDate = targetDate,
+                        timings = timings
+                    )
+                )
+            } catch (_: Exception) {}
             onDone()
         }
     }

@@ -1,6 +1,7 @@
 package com.simats.hospiq.ui.screens.doctor
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -24,7 +25,6 @@ import com.simats.hospiq.network.ApiConfig
 import com.simats.hospiq.navigation.Screen
 import com.simats.hospiq.ui.components.*
 import com.simats.hospiq.ui.theme.*
-import com.simats.hospiq.utils.DemoData
 import com.simats.hospiq.utils.SessionManager
 import com.simats.hospiq.viewmodels.HospitalDetailState
 import com.simats.hospiq.viewmodels.HospitalViewModel
@@ -36,7 +36,8 @@ fun DoctorHospitalScreen(
     onNavigateToHome: () -> Unit,
     onNavigateToAppointments: () -> Unit,
     onNavigateToNotifications: () -> Unit,
-    onNavigateToProfile: () -> Unit
+    onNavigateToProfile: () -> Unit,
+    onNavigateToDoctorProfile: (Int) -> Unit = {}
 ) {
     val hospitalId = sessionManager.getHospitalId()
     val detailState by hospitalViewModel.detailState.collectAsState()
@@ -45,11 +46,23 @@ fun DoctorHospitalScreen(
     }
     val hospital = when (val s = detailState) {
         is HospitalDetailState.Success -> s.hospital
-        else -> DemoData.hospitals.firstOrNull { it.id == hospitalId } ?: DemoData.hospitals.first()
+        else -> null
     }
     val doctors = when (val s = detailState) {
         is HospitalDetailState.Success -> s.doctors.take(5)
-        else -> DemoData.doctors.filter { it.hospitalId == hospitalId }.take(5).ifEmpty { DemoData.doctors.take(5) }
+        else -> emptyList()
+    }
+
+    if (hospital == null) {
+        // Loading or error state
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            if (detailState is HospitalDetailState.Loading) {
+                CircularProgressIndicator(color = DeepTeal)
+            } else {
+                Text("Unable to load hospital info", color = SlateGray)
+            }
+        }
+        return
     }
 
     Scaffold(
@@ -198,7 +211,10 @@ fun DoctorHospitalScreen(
 
             items(doctors) { doctor ->
                 Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .clickable { onNavigateToDoctorProfile(doctor.id) },
                     shape = RoundedCornerShape(14.dp),
                     elevation = CardDefaults.cardElevation(1.dp),
                     colors = CardDefaults.cardColors(containerColor = SurfaceWhite)
