@@ -89,6 +89,9 @@ fun DoctorProfileScreen(
     var selectedDateString by remember { mutableStateOf(formattedDates.firstOrNull() ?: "2026-05-22") }
     var selectedSlotId by remember { mutableStateOf<Int?>(null) }
     var consultationType by remember { mutableStateOf("in_person") }
+    
+    var showAvailabilitySettings by remember { mutableStateOf(false) }
+    val isOwnProfile = sessionManager.getRole() == "doctor" && sessionManager.getDoctorId() == doctorId
 
     val context = LocalContext.current
     fun showCustomDatePicker() {
@@ -112,14 +115,7 @@ fun DoctorProfileScreen(
 
     val selectedSlot = slots.find { it.id == selectedSlotId }
     
-    // RESTRICT slots using doctor's availability slots if enabled
-    val filteredSlots = if (DemoData.dynamicTimingsEnabled) {
-        slots.filter { DemoData.activeSlots.contains(it.id) }
-    } else {
-        slots
-    }
-    val morningSlots = filteredSlots.filter { it.id <= 6 }
-    val afternoonSlots = filteredSlots.filter { it.id > 6 }
+    val filteredSlots = slots
 
     Scaffold(
         containerColor = AppBackground,
@@ -148,49 +144,73 @@ fun DoctorProfileScreen(
         bottomBar = {
             Surface(shadowElevation = 8.dp) {
                 Column(modifier = Modifier.background(SurfaceWhite).padding(16.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column {
-                            Text("Selected Slot", fontSize = 12.sp, color = SlateGray)
-                            Text(
-                                text = selectedSlot?.slotTime ?: "None selected",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (selectedSlot != null) DeepTeal else CoralOrange
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Button(
-                        onClick = {
-                            selectedSlotId?.let { slotId ->
-                                appointmentViewModel.bookAppointment(
-                                    patientId = sessionManager.getUserId(),
-                                    doctorId = doctorId,
-                                    slotId = slotId,
-                                    consultationType = consultationType,
-                                    date = selectedDateString
-                                )
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedSlot != null) DeepTeal else DisabledGray
-                        ),
-                        enabled = selectedSlot != null && bookingState !is BookingState.Loading
-                    ) {
-                        if (bookingState is BookingState.Loading) {
-                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(22.dp))
-                        } else {
+                    if (isOwnProfile) {
+                        Button(
+                            onClick = { showAvailabilitySettings = true },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = IndigoDoctor)
+                        ) {
                             Icon(Icons.Default.DateRange, null, tint = Color.White, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Confirm Appointment", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("Create Slots", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                    } else {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column {
+                                Text("Selected Slot", fontSize = 12.sp, color = SlateGray)
+                                Text(
+                                    text = selectedSlot?.slotTime ?: "None selected",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (selectedSlot != null) DeepTeal else CoralOrange
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                selectedSlotId?.let { slotId ->
+                                    appointmentViewModel.bookAppointment(
+                                        patientId = sessionManager.getUserId(),
+                                        doctorId = doctorId,
+                                        slotId = slotId,
+                                        consultationType = consultationType,
+                                        date = selectedDateString
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (selectedSlot != null) DeepTeal else DisabledGray
+                            ),
+                            enabled = selectedSlot != null && bookingState !is BookingState.Loading
+                        ) {
+                            if (bookingState is BookingState.Loading) {
+                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(22.dp))
+                            } else {
+                                Icon(Icons.Default.DateRange, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Confirm Appointment", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            }
                         }
                     }
                 }
             }
         }
     ) { innerPadding ->
+        if (showAvailabilitySettings) {
+            com.simats.hospiq.ui.screens.profile.CustomSlotCreatorDialog(
+                doctorViewModel = doctorViewModel,
+                doctorId = doctorId,
+                onDismiss = {
+                    showAvailabilitySettings = false
+                    doctorViewModel.loadDoctorProfile(doctorId, selectedDateString)
+                }
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -313,13 +333,7 @@ fun DoctorProfileScreen(
                     // Slots
                     Text("Available Slots", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = CharcoalText)
                     Spacer(Modifier.height(8.dp))
-                    Text("MORNING", fontSize = 11.sp, color = SlateGray, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(8.dp))
-                    SlotGrid(slots = morningSlots, selectedSlotId = selectedSlotId, onSlotClick = { selectedSlotId = it })
-                    Spacer(Modifier.height(12.dp))
-                    Text("AFTERNOON", fontSize = 11.sp, color = SlateGray, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(8.dp))
-                    SlotGrid(slots = afternoonSlots, selectedSlotId = selectedSlotId, onSlotClick = { selectedSlotId = it })
+                    SlotGrid(slots = filteredSlots, selectedSlotId = selectedSlotId, onSlotClick = { selectedSlotId = it })
                 }
             }
 
