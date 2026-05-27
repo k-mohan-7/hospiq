@@ -171,6 +171,7 @@ fun DoctorProfileScreen(
                             onClick = {
                                 selectedSlotId?.let { slotId ->
                                     appointmentViewModel.bookAppointment(
+                                        context = context,
                                         patientId = sessionManager.getUserId(),
                                         doctorId = doctorId,
                                         slotId = slotId,

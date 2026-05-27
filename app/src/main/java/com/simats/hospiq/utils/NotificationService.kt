@@ -10,6 +10,10 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.simats.hospiq.MainActivity
 import com.simats.hospiq.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import com.simats.hospiq.network.RetrofitInstance
 
 object NotificationService {
     private const val CHANNEL_APPOINTMENT = "hospiq_appointments"
@@ -62,6 +66,48 @@ object NotificationService {
         notifId: Int = System.currentTimeMillis().toInt()
     ) {
         showNotification(context, CHANNEL_GENERAL, title, body, notifId)
+    }
+
+    fun isNotified(context: Context, id: Int): Boolean {
+        val prefs = context.getSharedPreferences("hospiq_notif_prefs", Context.MODE_PRIVATE)
+        val current = prefs.getStringSet("shown_ids", emptySet()) ?: emptySet()
+        return current.contains(id.toString())
+    }
+
+    fun markAsNotified(context: Context, id: Int) {
+        val prefs = context.getSharedPreferences("hospiq_notif_prefs", Context.MODE_PRIVATE)
+        val current = prefs.getStringSet("shown_ids", emptySet()) ?: emptySet()
+        val updated = current.toMutableSet().apply { add(id.toString()) }
+        prefs.edit().putStringSet("shown_ids", updated).apply()
+    }
+
+    fun checkForNewNotifications(context: Context, userId: Int) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val response = RetrofitInstance.api.getNotifications(userId)
+                if (response.isSuccessful && response.body()?.success == true) {
+                    val notifications = response.body()!!.data?.notifications ?: return@launch
+                    for (notif in notifications) {
+                        if (!notif.isRead && !isNotified(context, notif.id)) {
+                            showNotification(
+                                context = context,
+                                channelId = when (notif.type) {
+                                    "appointment" -> CHANNEL_APPOINTMENT
+                                    "reminder" -> CHANNEL_REMINDER
+                                    else -> CHANNEL_GENERAL
+                                },
+                                title = notif.title,
+                                body = notif.body,
+                                notifId = notif.id
+                            )
+                            markAsNotified(context, notif.id)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     private fun showNotification(

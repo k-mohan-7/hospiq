@@ -77,6 +77,7 @@ class AppointmentViewModel : ViewModel() {
     }
 
     fun bookAppointment(
+        context: android.content.Context,
         patientId: Int, doctorId: Int, slotId: Int, consultationType: String,
         date: String = "",
         illnessName: String = "", illnessDescription: String = "", precautions: String = ""
@@ -98,6 +99,12 @@ class AppointmentViewModel : ViewModel() {
                 if (response.isSuccessful && response.body()?.success == true) {
                     val apptId = response.body()!!.data?.appointmentId ?: 0
                     _bookingState.value = BookingState.Success(apptId)
+                    // Trigger immediate local confirmation notification
+                    com.simats.hospiq.utils.NotificationService.showAppointmentNotification(
+                        context = context,
+                        title = "📅 Appointment Requested",
+                        body = "Your appointment request has been submitted successfully."
+                    )
                 } else {
                     _bookingState.value = BookingState.Error(
                         response.body()?.message ?: "Booking failed. Please try again."

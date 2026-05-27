@@ -43,8 +43,14 @@ import com.simats.hospiq.viewmodels.NotificationViewModel
 
 import com.simats.hospiq.utils.NotificationService
 import com.simats.hospiq.utils.AppointmentReminderWorker
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 
 class MainActivity : ComponentActivity() {
+    private var pollingJob: Job? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val sessionManager = SessionManager(this)
@@ -54,6 +60,16 @@ class MainActivity : ComponentActivity() {
         // Initialize Notification Channels and schedule periodic background reminder worker
         NotificationService.createChannels(this)
         AppointmentReminderWorker.schedule(this)
+
+        // Request POST_NOTIFICATIONS runtime permission on startup for API 33+ (Android 13+)
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            if (checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf("android.permission.POST_NOTIFICATIONS"), 101)
+            }
+        }
+
+        // Start foreground polling for real-time notifications
+        startNotificationPolling(sessionManager)
 
         setContent {
             HospiQTheme {
@@ -69,6 +85,23 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun startNotificationPolling(sessionManager: SessionManager) {
+        pollingJob = lifecycleScope.launch {
+            while (true) {
+                val userId = sessionManager.getUserId()
+                if (userId != -1) {
+                    NotificationService.checkForNewNotifications(this@MainActivity, userId)
+                }
+                delay(10000) // Poll every 10 seconds
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        pollingJob?.cancel()
     }
 }
 
