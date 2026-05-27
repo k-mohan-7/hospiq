@@ -525,10 +525,10 @@ fun CustomSlotCreatorDialog(
 ) {
     var isSaving by remember { mutableStateOf(false) }
     var applyTo by remember { mutableStateOf("all_days") } // "all_days" or "specific_date"
-    
+
     val calendar = Calendar.getInstance()
     var selectedDate by remember { mutableStateOf(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(calendar.time)) }
-    
+
     val context = LocalContext.current
     fun showDatePicker() {
         val datePickerDialog = android.app.DatePickerDialog(
@@ -546,12 +546,29 @@ fun CustomSlotCreatorDialog(
         datePickerDialog.show()
     }
 
-    // Default 10 custom slots
-    val timings = remember { 
-        mutableStateListOf(
-            "09:00", "09:30", "10:00", "10:30", "11:00", 
-            "14:00", "14:30", "15:00", "15:30", "16:00"
-        ) 
+    // Dynamic timings array
+    val initialTimings = doctorViewModel.profileState.value.let { state ->
+        if (state is DoctorProfileState.Success && state.slots.isNotEmpty()) {
+            state.slots.map { it.slotTime.take(5) }.distinct()
+        } else {
+            listOf("09:00", "09:30", "10:00", "10:30", "11:00", "14:00", "14:30", "15:00", "15:30", "16:00")
+        }
+    }
+    val timings = remember { mutableStateListOf(*initialTimings.toTypedArray()) }
+
+    fun showTimePicker() {
+        val timePickerDialog = android.app.TimePickerDialog(
+            context,
+            { _, hourOfDay, minute ->
+                val timeString = String.format(Locale.getDefault(), "%02d:%02d", hourOfDay, minute)
+                if (!timings.contains(timeString)) {
+                    timings.add(timeString)
+                    timings.sort()
+                }
+            },
+            9, 0, false
+        )
+        timePickerDialog.show()
     }
 
     androidx.compose.ui.window.Dialog(onDismissRequest = { if (!isSaving) onDismiss() }) {
@@ -587,7 +604,7 @@ fun CustomSlotCreatorDialog(
                 }
 
                 Text(
-                    "Set up your 10 custom booking slots. You can apply these to all repetitive days or override a specific date.",
+                    "Set up your custom booking slots. You can apply these to all repetitive days or override a specific date.",
                     fontSize = 12.sp,
                     color = SlateGray
                 )
@@ -623,26 +640,43 @@ fun CustomSlotCreatorDialog(
                     )
                 }
 
-                Text("Custom Timings (e.g. 09:30, 14:15)", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CharcoalText)
-
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    maxItemsInEachRow = 2,
-                    modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    for (i in 0 until 10) {
-                        OutlinedTextField(
-                            value = timings[i],
-                            onValueChange = { newValue -> timings[i] = newValue },
-                            label = { Text("Slot ${i + 1}") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(8.dp)
-                        )
+                    Text("Custom Timings", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CharcoalText)
+                    TextButton(onClick = { showTimePicker() }) {
+                        Icon(Icons.Default.Add, contentDescription = "Add Slot", modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Add a Slot")
                     }
                 }
 
+                if (timings.isEmpty()) {
+                    Text("No slots defined. Add a slot to begin.", fontSize = 13.sp, color = SlateGray, modifier = Modifier.padding(vertical = 12.dp))
+                } else {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        timings.forEach { time ->
+                            Box(
+                                modifier = Modifier
+                                    .background(SoftTeal, RoundedCornerShape(16.dp))
+                                    .clickable { timings.remove(time) }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(time, fontSize = 14.sp, color = DeepTeal, fontWeight = FontWeight.SemiBold)
+                                    Spacer(Modifier.width(6.dp))
+                                    Icon(Icons.Default.Close, contentDescription = "Remove", tint = DeepTeal, modifier = Modifier.size(14.dp))
+                                }
+                            }
+                        }
+                    }
+                }
                 Spacer(Modifier.height(8.dp))
 
                 // Save/Close Button
