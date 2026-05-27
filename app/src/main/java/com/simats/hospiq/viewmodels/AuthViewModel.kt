@@ -69,12 +69,15 @@ class AuthViewModel : ViewModel() {
     fun registerDoctor(
         fullName: String, email: String, phone: String, password: String,
         specialization: String, licenseNumber: String, yearsExp: Int, bio: String,
+        languages: String,
         hospitalId: Int,
         createHospital: Boolean,
         hospitalName: String,
         hospitalAddress: String,
         hospitalCity: String,
         hospitalType: String,
+        hospitalLatitude: Double?,
+        hospitalLongitude: Double?,
         profilePhotoBytes: ByteArray?,
         profilePhotoName: String?,
         hospitalPhotoBytes: ByteArray?,
@@ -110,6 +113,9 @@ class AuthViewModel : ViewModel() {
                     hospitalAddress = hospitalAddress.toBody(),
                     hospitalCity = hospitalCity.toBody(),
                     hospitalType = hospitalType.toBody(),
+                    languages = languages.toBody(),
+                    hospitalLatitude = (hospitalLatitude?.toString() ?: "0.0").toBody(),
+                    hospitalLongitude = (hospitalLongitude?.toString() ?: "0.0").toBody(),
                     profilePhoto = profilePhotoPart,
                     hospitalPhoto = hospitalPhotoPart
                 )

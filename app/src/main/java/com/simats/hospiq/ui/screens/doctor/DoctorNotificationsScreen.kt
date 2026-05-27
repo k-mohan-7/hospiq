@@ -23,11 +23,46 @@ import com.simats.hospiq.viewmodels.NotificationState
 import com.simats.hospiq.viewmodels.NotificationViewModel
 
 private val doctorNotifications = listOf(
-    AppNotification(1, "New appointment request", "Ravi Shankar has requested a consultation for tomorrow at 10:00 AM.", "appointment", false, "2m ago"),
-    AppNotification(2, "Appointment reminder", "Your appointment with Meena Devi is in 30 minutes.", "appointment", false, "1h ago"),
-    AppNotification(3, "Schedule update approved", "Your slot changes for Wednesday have been approved.", "general", true, "3h ago"),
-    AppNotification(4, "Lab results pending review", "3 patient lab reports are awaiting your review.", "lab", true, "Yesterday"),
-    AppNotification(5, "New patient registered", "Arjun Kumar has joined as your patient.", "general", true, "Yesterday")
+    AppNotification(
+        id = 1,
+        title = "New appointment request",
+        body = "Ravi Shankar has requested a consultation for tomorrow at 10:00 AM.",
+        type = "appointment",
+        isRead = false,
+        timeAgo = "2m ago"
+    ),
+    AppNotification(
+        id = 2,
+        title = "Appointment reminder",
+        body = "Your appointment with Meena Devi is in 30 minutes.",
+        type = "appointment",
+        isRead = false,
+        timeAgo = "1h ago"
+    ),
+    AppNotification(
+        id = 3,
+        title = "Schedule update approved",
+        body = "Your slot changes for Wednesday have been approved.",
+        type = "general",
+        isRead = true,
+        timeAgo = "3h ago"
+    ),
+    AppNotification(
+        id = 4,
+        title = "Lab results pending review",
+        body = "3 patient lab reports are awaiting your review.",
+        type = "lab",
+        isRead = true,
+        timeAgo = "Yesterday"
+    ),
+    AppNotification(
+        id = 5,
+        title = "New patient registered",
+        body = "Arjun Kumar has joined as your patient.",
+        type = "general",
+        isRead = true,
+        timeAgo = "Yesterday"
+    )
 )
 
 @Composable

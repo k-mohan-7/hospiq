@@ -102,7 +102,12 @@ fun SearchScreen(
                         } else null,
                         shape = RoundedCornerShape(14.dp),
                         singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = DeepTeal, unfocusedBorderColor = BorderGray)
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = DeepTeal,
+                            unfocusedBorderColor = BorderGray,
+                            focusedTextColor = CharcoalText,
+                            unfocusedTextColor = CharcoalText
+                        )
                     )
                 }
             }

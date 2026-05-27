@@ -34,6 +34,11 @@ import com.simats.hospiq.network.models.Appointment
 import com.simats.hospiq.utils.SessionManager
 import com.simats.hospiq.viewmodels.HospitalUiState
 import com.simats.hospiq.viewmodels.HospitalViewModel
+import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
+import com.google.android.gms.location.LocationServices
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Root screen composable
@@ -51,6 +56,7 @@ fun PatientHomeScreen(
     onNavigateToProfile: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val firstName = sessionManager.getName()?.split(" ")?.firstOrNull() ?: "there"
     val hospitalState by hospitalViewModel.listState.collectAsState()
     val nearbyHospitals = when (val s = hospitalState) {
@@ -69,10 +75,53 @@ fun PatientHomeScreen(
         else -> emptyList()
     }
 
+    var userLatitude by remember { mutableStateOf<Double?>(null) }
+    var userLongitude by remember { mutableStateOf<Double?>(null) }
+
+    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineLocationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        if (fineLocationGranted || coarseLocationGranted) {
+            try {
+                fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
+                    if (loc != null) {
+                        userLatitude = loc.latitude
+                        userLongitude = loc.longitude
+                        hospitalViewModel.loadHospitals(loc.latitude, loc.longitude)
+                    } else {
+                        // Fallback Chennai
+                        userLatitude = 13.0827
+                        userLongitude = 80.2707
+                        hospitalViewModel.loadHospitals(13.0827, 80.2707)
+                    }
+                }
+            } catch (e: SecurityException) {
+                userLatitude = 13.0827
+                userLongitude = 80.2707
+                hospitalViewModel.loadHospitals(13.0827, 80.2707)
+            }
+        } else {
+            userLatitude = 13.0827
+            userLongitude = 80.2707
+            hospitalViewModel.loadHospitals(13.0827, 80.2707)
+        }
+    }
+
     LaunchedEffect(Unit) {
-        hospitalViewModel.loadHospitals()
+        permissionLauncher.launch(
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        )
         appointmentViewModel.loadPatientAppointments(sessionManager.getUserId())
     }
+
+    var showMapDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = AppBackground,
@@ -91,14 +140,20 @@ fun PatientHomeScreen(
             )
         }
     ) { innerPadding ->
-        if (hospitalState is HospitalUiState.Loading || appointmentsState is com.simats.hospiq.viewmodels.AppointmentListState.Loading) {
+        // Show full-page spinner ONLY when hospitals are loading AND we have no data yet
+        val isFirstLoad = hospitalState is HospitalUiState.Loading && nearbyHospitals.isEmpty() && topRatedHospitals.isEmpty()
+
+        if (isFirstLoad) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = DeepTeal)
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    CircularProgressIndicator(color = DeepTeal)
+                    Text("Finding hospitals near you...", color = SlateGray, fontSize = 14.sp)
+                }
             }
         } else {
             LazyColumn(
@@ -107,7 +162,7 @@ fun PatientHomeScreen(
                     .padding(innerPadding),
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
-            // ── Top Bar ──────────────────────────────────────────────────
+            // ── Top Bar ────────────────────────────────────────────
             item {
                 HomeTopBar(
                     firstName = firstName,
@@ -118,7 +173,7 @@ fun PatientHomeScreen(
                 )
             }
 
-            // ── Search Bar ───────────────────────────────────────────────
+            // ── Search Bar ──────────────────────────────────────────
             item {
                 HomeSearchBar(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -126,31 +181,61 @@ fun PatientHomeScreen(
                 )
             }
 
-            // ── Near You section ─────────────────────────────────────────
+            // ── Near You section ───────────────────────────────────
             item {
-                SectionHeader(
-                    title = "Near you",
-                    actionLabel = "See All",
-                    onActionClick = onNavigateToSearch,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SectionHeader(
+                        title = "Near you",
+                        actionLabel = "See All",
+                        onActionClick = onNavigateToSearch
+                    )
+                    // Map toggle button
+                    OutlinedButton(
+                        onClick = { showMapDialog = true },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, DeepTeal),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Icon(Icons.Default.Map, null, tint = DeepTeal, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Map", color = DeepTeal, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
             }
             item {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(nearbyHospitals) { hospital ->
-                        HospitalCard(
-                            hospital = hospital,
-                            onClick = { onNavigateToHospitalDetail(hospital.id) },
-                            modifier = Modifier.width(260.dp)
-                        )
+                if (hospitalState is HospitalUiState.Loading) {
+                    // Skeleton while refreshing
+                    Box(modifier = Modifier.padding(horizontal = 16.dp).height(160.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = DeepTeal, strokeWidth = 2.dp)
+                    }
+                } else if (nearbyHospitals.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                        Text("No hospitals found nearby. Try expanding your search.", color = SlateGray, fontSize = 13.sp)
+                    }
+                } else {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(nearbyHospitals) { hospital ->
+                            HospitalCard(
+                                hospital = hospital,
+                                onClick = { onNavigateToHospitalDetail(hospital.id) },
+                                modifier = Modifier.width(260.dp)
+                            )
+                        }
                     }
                 }
             }
 
-            // ── Recent Appointments section ──────────────────────────────
+            // ── Recent Appointments section ──────────────────────────
             val activeAppointments = appointments.filter { it.status != "cancelled" && it.status != "rejected" }
             item {
                 SectionHeader(
@@ -160,33 +245,53 @@ fun PatientHomeScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                 )
             }
-            if (activeAppointments.isEmpty()) {
-                item {
-                    Text(
-                        text = "No recent appointments",
-                        color = SlateGray,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+            when (appointmentsState) {
+                is com.simats.hospiq.viewmodels.AppointmentListState.Loading -> {
+                    item {
+                        Box(modifier = Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), color = DeepTeal, strokeWidth = 2.dp)
+                        }
+                    }
                 }
-            } else {
-                item {
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(activeAppointments) { appt ->
-                            RecentAppointmentItem(
-                                appointment = appt,
-                                onNavigateToAppointments = onNavigateToAppointments
-                            )
+                else -> {
+                    if (activeAppointments.isEmpty()) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = SurfaceWhite)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(20.dp).fillMaxWidth(),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text("📅", fontSize = 28.sp)
+                                    Spacer(Modifier.height(8.dp))
+                                    Text("No upcoming appointments", fontWeight = FontWeight.SemiBold, color = CharcoalText)
+                                    Text("Book your first appointment today!", fontSize = 13.sp, color = SlateGray)
+                                }
+                            }
+                        }
+                    } else {
+                        item {
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items(activeAppointments) { appt ->
+                                    RecentAppointmentItem(
+                                        appointment = appt,
+                                        onNavigateToAppointments = onNavigateToAppointments
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            // ── Doctor's Advice & Prescriptions section ───────────────────
+            // ── Doctor's Advice & Prescriptions section ───────────────
             val adviceAppointments = appointments.filter { !it.doctorAdvice.isNullOrBlank() }
             if (adviceAppointments.isNotEmpty()) {
                 item {
@@ -205,7 +310,7 @@ fun PatientHomeScreen(
                 }
             }
 
-            // ── Browse by Specialty ──────────────────────────────────────
+            // ── Browse by Specialty ─────────────────────────────────
             item {
                 SectionHeader(
                     title = "Browse by specialty",
@@ -219,7 +324,7 @@ fun PatientHomeScreen(
                 )
             }
 
-            // ── Top Rated Hospitals ──────────────────────────────────────
+            // ── Top Rated Hospitals ────────────────────────────────
             item {
                 SectionHeader(
                     title = "Top rated hospitals",
@@ -236,6 +341,18 @@ fun PatientHomeScreen(
                 )
             }
         }
+    }
+
+    if (showMapDialog) {
+        val uniqueHops = (nearbyHospitals + topRatedHospitals).distinctBy { it.id }
+        HospitalsMapDialog(
+            context = context,
+            hospitals = uniqueHops,
+            userLat = userLatitude,
+            userLng = userLongitude,
+            onNavigateToHospitalDetail = onNavigateToHospitalDetail,
+            onDismiss = { showMapDialog = false }
+        )
     }
 }
 }

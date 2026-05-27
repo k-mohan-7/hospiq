@@ -31,7 +31,11 @@ class HospitalViewModel : ViewModel() {
     private val _detailState = MutableStateFlow<HospitalDetailState>(HospitalDetailState.Loading)
     val detailState: StateFlow<HospitalDetailState> = _detailState
 
-    fun loadHospitals() {
+    fun loadHospitals(lat: Double? = null, lng: Double? = null) {
+        if (lat != null && lng != null) {
+            loadNearbyHospitals(lat, lng)
+            return
+        }
         viewModelScope.launch {
             _listState.value = HospitalUiState.Loading
             try {
@@ -47,6 +51,33 @@ class HospitalViewModel : ViewModel() {
                         response.body()?.message ?: "Failed to load hospitals"
                     )
                 }
+            } catch (e: Exception) {
+                _listState.value = HospitalUiState.Error(e.localizedMessage ?: "Network error")
+            }
+        }
+    }
+
+    fun loadNearbyHospitals(lat: Double, lng: Double) {
+        viewModelScope.launch {
+            _listState.value = HospitalUiState.Loading
+            try {
+                // get_nearby.php now falls back to all hospitals with computed distance when none are within radius
+                val nearbyResponse = RetrofitInstance.api.getNearbyHospitals(lat, lng)
+                val allResponse = RetrofitInstance.api.getAllHospitals(lat = lat, lng = lng)
+                val nearby = if (nearbyResponse.isSuccessful && nearbyResponse.body()?.success == true) {
+                    nearbyResponse.body()!!.data?.hospitals ?: emptyList()
+                } else {
+                    emptyList()
+                }
+                val all = if (allResponse.isSuccessful && allResponse.body()?.success == true) {
+                    allResponse.body()!!.data?.hospitals ?: emptyList()
+                } else {
+                    emptyList()
+                }
+                _listState.value = HospitalUiState.Success(
+                    nearbyHospitals = if (nearby.isNotEmpty()) nearby else all,
+                    topRatedHospitals = all.sortedByDescending { it.avgRating }
+                )
             } catch (e: Exception) {
                 _listState.value = HospitalUiState.Error(e.localizedMessage ?: "Network error")
             }

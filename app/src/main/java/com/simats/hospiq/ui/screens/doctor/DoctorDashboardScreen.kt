@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -47,20 +48,30 @@ fun DoctorDashboardScreen(
     val doctorName = sessionManager.getName() ?: "Doctor"
     val doctorFirstName = doctorName.split(" ").firstOrNull() ?: doctorName
     val doctorId = sessionManager.getDoctorId() ?: sessionManager.getUserId()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val appointmentsState by appointmentViewModel.appointmentsState.collectAsState()
     val appointments = when (val s = appointmentsState) {
         is AppointmentListState.Success -> s.appointments
         else -> emptyList()
     }
     val doctorStatus by doctorViewModel.doctorStatus.collectAsState()
+    val doctorPatients by doctorViewModel.doctorPatients.collectAsState()
+
     LaunchedEffect(doctorId) {
         appointmentViewModel.loadDoctorAppointments(doctorId)
         doctorViewModel.loadDoctorProfile(doctorId)
+        doctorViewModel.loadDoctorPatients(doctorId)
     }
     val pending = appointments.filter { it.status == "pending" }
     val confirmed = appointments.filter { it.status == "accepted" }
     val completed = appointments.filter { it.status == "completed" }
     var selectedAppointmentForDetail by remember { mutableStateOf<Appointment?>(null) }
+    val healthReports by appointmentViewModel.healthReports.collectAsState()
+    LaunchedEffect(selectedAppointmentForDetail) {
+        selectedAppointmentForDetail?.let {
+            appointmentViewModel.loadPatientHealthReports(it.patientId)
+        }
+    }
 
     Scaffold(
         containerColor = AppBackground,
@@ -154,15 +165,15 @@ fun DoctorDashboardScreen(
                             Spacer(Modifier.height(12.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 StatusToggle("✅ Available", "available", doctorStatus) { newStatus ->
-                                    doctorViewModel.updateStatus(doctorId, newStatus)
+                                    doctorViewModel.updateStatus(context, doctorId, newStatus)
                                 }
                                 StatusToggle("🕐 Busy", "busy", doctorStatus) { newStatus ->
-                                    doctorViewModel.updateStatus(doctorId, newStatus)
+                                    doctorViewModel.updateStatus(context, doctorId, newStatus)
                                 }
                             }
                             Spacer(Modifier.height(10.dp))
                             StatusToggle("🔪 In Surgery", "in_surgery", doctorStatus, full = true) { newStatus ->
-                                doctorViewModel.updateStatus(doctorId, newStatus)
+                                doctorViewModel.updateStatus(context, doctorId, newStatus)
                             }
                         }
                     }
@@ -193,6 +204,96 @@ fun DoctorDashboardScreen(
                     Spacer(Modifier.height(20.dp))
                 }
 
+                // ── My Patients Section ─────────────────────────────
+                if (doctorPatients.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = "My Patients",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = CharcoalText,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
+                    item {
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(doctorPatients) { patient ->
+                                Card(
+                                    modifier = Modifier
+                                        .width(180.dp)
+                                        .clickable {
+                                            val latestAppt = appointments.find { it.patientId == patient.patientId } 
+                                                ?: Appointment(
+                                                    patientId = patient.patientId,
+                                                    patientName = patient.fullName,
+                                                    doctorId = doctorId
+                                                )
+                                            selectedAppointmentForDetail = latestAppt
+                                        },
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(12.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(50.dp)
+                                                .clip(CircleShape)
+                                                .background(SoftTeal),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (!patient.profilePhoto.isNullOrEmpty()) {
+                                                AsyncImage(
+                                                    model = "${ApiConfig.IMAGE_BASE_URL}uploads/profile/${patient.profilePhoto}",
+                                                    contentDescription = patient.fullName,
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentScale = ContentScale.Crop
+                                                )
+                                            } else {
+                                                Text(
+                                                    text = patient.fullName.take(1).uppercase(),
+                                                    color = DeepTeal,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 18.sp
+                                                )
+                                            }
+                                        }
+                                        Spacer(Modifier.height(8.dp))
+                                        Text(
+                                            text = patient.fullName,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = CharcoalText,
+                                            maxLines = 1
+                                        )
+                                        Text(
+                                            text = patient.lastIllnessName ?: "General Care",
+                                            fontSize = 11.sp,
+                                            color = SlateGray,
+                                            maxLines = 1
+                                        )
+                                        Spacer(Modifier.height(6.dp))
+                                        Text(
+                                            text = "${patient.totalAppointments} appts",
+                                            fontSize = 11.sp,
+                                            color = DeepTeal,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(16.dp))
+                    }
+                }
+
                 // Header section
                 item {
                     Row(
@@ -215,13 +316,13 @@ fun DoctorDashboardScreen(
                         isDoctor = true,
                         action1Label = "Accept",
                         onAction1 = {
-                            appointmentViewModel.acceptAppointment(appt.id) {
+                            appointmentViewModel.acceptAppointment(context, appt.id) {
                                 appointmentViewModel.loadDoctorAppointments(doctorId)
                             }
                         },
                         action2Label = "Reject",
                         onAction2 = {
-                            appointmentViewModel.rejectAppointment(appt.id) {
+                            appointmentViewModel.rejectAppointment(context, appt.id) {
                                 appointmentViewModel.loadDoctorAppointments(doctorId)
                             }
                         },
@@ -308,12 +409,27 @@ fun DoctorDashboardScreen(
                 PatientDetailsAdviceDialog(
                     appointment = appt,
                     allAppointments = appointments,
+                    healthReports = healthReports,
                     onDismiss = { selectedAppointmentForDetail = null },
-                    onSubmitAdvice = { advice ->
-                        appointmentViewModel.submitDoctorAdvice(appt.id, advice) {
+                    onSubmitReport = { status, notes, docs, docNames ->
+                        appointmentViewModel.submitHealthReport(
+                            appointmentId = appt.id,
+                            patientId = appt.patientId,
+                            doctorId = appt.doctorId,
+                            healthStatus = status,
+                            notes = notes,
+                            documentBytesList = docs,
+                            documentNames = docNames
+                        ) {
                             selectedAppointmentForDetail = null
                             appointmentViewModel.loadDoctorAppointments(doctorId)
                         }
+                    },
+                    onEditReport = { reportId, status, notes ->
+                        appointmentViewModel.editHealthReport(reportId, appt.patientId, status, notes)
+                    },
+                    onDeleteReport = { reportId ->
+                        appointmentViewModel.deleteHealthReport(reportId, appt.patientId)
                     }
                 )
             }

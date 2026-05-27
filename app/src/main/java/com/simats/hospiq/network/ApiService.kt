@@ -32,6 +32,9 @@ interface ApiService {
         @Part("hospital_address") hospitalAddress: RequestBody,
         @Part("hospital_city") hospitalCity: RequestBody,
         @Part("hospital_type") hospitalType: RequestBody,
+        @Part("languages") languages: RequestBody,
+        @Part("hospital_latitude") hospitalLatitude: RequestBody,
+        @Part("hospital_longitude") hospitalLongitude: RequestBody,
         @Part profilePhoto: MultipartBody.Part? = null,
         @Part hospitalPhoto: MultipartBody.Part? = null
     ): Response<ApiResponse<AuthData>>
@@ -47,7 +50,10 @@ interface ApiService {
 
     // ── Hospitals ─────────────────────────────────────────────────────────────
     @GET("hospitals/get_all.php")
-    suspend fun getAllHospitals(): Response<ApiResponse<HospitalListData>>
+    suspend fun getAllHospitals(
+        @Query("lat") lat: Double? = null,
+        @Query("lng") lng: Double? = null
+    ): Response<ApiResponse<HospitalListData>>
 
     @GET("hospitals/get_by_id.php")
     suspend fun getHospitalById(@Query("id") id: Int): Response<ApiResponse<Hospital>>
@@ -64,6 +70,9 @@ interface ApiService {
 
     @GET("doctors/get_profile.php")
     suspend fun getDoctorProfile(@Query("doctor_id") doctorId: Int): Response<ApiResponse<Doctor>>
+
+    @GET("doctors/get_patients.php")
+    suspend fun getDoctorPatients(@Query("doctor_id") doctorId: Int): Response<ApiResponse<DoctorPatientListData>>
 
     @POST("doctors/update_status.php")
     suspend fun updateDoctorStatus(@Body body: DoctorStatusRequest): Response<ApiResponse<Unit>>
@@ -106,7 +115,42 @@ interface ApiService {
     @POST("slots/create_custom_slots.php")
     suspend fun createCustomSlots(@Body body: CreateCustomSlotsRequest): Response<ApiResponse<Unit>>
 
+    // ── Health Reports ────────────────────────────────────────────────────────
+    @Multipart
+    @POST("reports/submit_report.php")
+    suspend fun submitHealthReport(
+        @Part("appointment_id") appointmentId: RequestBody,
+        @Part("patient_id") patientId: RequestBody,
+        @Part("doctor_id") doctorId: RequestBody,
+        @Part("health_status") healthStatus: RequestBody,
+        @Part("notes") notes: RequestBody,
+        @Part documents: List<MultipartBody.Part>? = null
+    ): Response<ApiResponse<Unit>>
+
+    @GET("reports/get_report.php")
+    suspend fun getHealthReports(
+        @Query("appointment_id") appointmentId: Int = 0,
+        @Query("patient_id") patientId: Int = 0
+    ): Response<ApiResponse<HealthReportListData>>
+
+    @FormUrlEncoded
+    @POST("reports/edit_report.php")
+    suspend fun editHealthReport(
+        @Field("report_id") reportId: Int,
+        @Field("health_status") healthStatus: String,
+        @Field("notes") notes: String
+    ): Response<ApiResponse<Unit>>
+
+    @POST("reports/delete_report.php")
+    suspend fun deleteHealthReport(
+        @Query("report_id") reportId: Int
+    ): Response<ApiResponse<Unit>>
+
+
     // ── Notifications ─────────────────────────────────────────────────────────
     @GET("notifications/get.php")
     suspend fun getNotifications(@Query("user_id") userId: Int): Response<ApiResponse<NotificationListData>>
+
+    @POST("hospitals/rate.php")
+    suspend fun rateHospital(@Body body: RateHospitalRequest): Response<ApiResponse<Unit>>
 }

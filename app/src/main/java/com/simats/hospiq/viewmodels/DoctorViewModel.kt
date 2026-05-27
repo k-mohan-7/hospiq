@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.simats.hospiq.network.RetrofitInstance
 import com.simats.hospiq.network.models.Doctor
+import com.simats.hospiq.network.models.DoctorPatient
 import com.simats.hospiq.network.models.DoctorStatusRequest
 import com.simats.hospiq.network.models.TimeSlot
 import com.simats.hospiq.network.models.UpdateSlotsRequest
@@ -64,7 +65,7 @@ class DoctorViewModel : ViewModel() {
         }
     }
 
-    fun updateStatus(doctorId: Int, status: String, onDone: () -> Unit = {}) {
+    fun updateStatus(context: android.content.Context, doctorId: Int, status: String, onDone: () -> Unit = {}) {
         viewModelScope.launch {
             statusUpdating.value = true
             try {
@@ -76,6 +77,18 @@ class DoctorViewModel : ViewModel() {
                 if (current is DoctorProfileState.Success) {
                     _profileState.value = current.copy(doctor = current.doctor.copy(status = status))
                 }
+                
+                val statusLabel = when (status) {
+                    "available" -> "Available"
+                    "busy" -> "Busy"
+                    "in_surgery" -> "In Surgery"
+                    else -> status
+                }
+                com.simats.hospiq.utils.NotificationService.showGeneralNotification(
+                    context = context,
+                    title = "⚡ Status Updated",
+                    body = "Your status has been updated to: $statusLabel"
+                )
             } catch (_: Exception) {}
             statusUpdating.value = false
             onDone()
@@ -121,6 +134,23 @@ class DoctorViewModel : ViewModel() {
                 )
             } catch (_: Exception) {}
             onDone()
+        }
+    }
+
+    // ── Doctor Patients ───────────────────────────────────────────────────────
+    private val _doctorPatients = MutableStateFlow<List<DoctorPatient>>(emptyList())
+    val doctorPatients: StateFlow<List<DoctorPatient>> = _doctorPatients
+
+    fun loadDoctorPatients(doctorId: Int) {
+        viewModelScope.launch {
+            try {
+                val response = RetrofitInstance.api.getDoctorPatients(doctorId)
+                if (response.isSuccessful && response.body()?.success == true) {
+                    _doctorPatients.value = response.body()!!.data?.patients ?: emptyList()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 }

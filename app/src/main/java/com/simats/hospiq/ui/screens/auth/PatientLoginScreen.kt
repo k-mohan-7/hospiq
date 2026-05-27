@@ -163,17 +163,20 @@ fun PatientLoginScreen(
                         )
                         Spacer(Modifier.height(20.dp))
 
-                        Text("Email Address", fontSize = 13.sp, color = SlateGray, fontWeight = FontWeight.Medium)
+                        Text("Email or Phone Number", fontSize = 13.sp, color = SlateGray, fontWeight = FontWeight.Medium)
                         Spacer(Modifier.height(6.dp))
                         OutlinedTextField(
                             value = email, onValueChange = { email = it },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("name@example.com", color = DisabledGray) },
+                            placeholder = { Text("Email or Phone Number", color = DisabledGray) },
                             shape = RoundedCornerShape(12.dp),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = DeepTeal, unfocusedBorderColor = BorderGray
+                                focusedBorderColor = DeepTeal,
+                                unfocusedBorderColor = BorderGray,
+                                focusedTextColor = CharcoalText,
+                                unfocusedTextColor = CharcoalText
                             )
                         )
                         Spacer(Modifier.height(14.dp))
@@ -195,7 +198,10 @@ fun PatientLoginScreen(
                                 }
                             },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = DeepTeal, unfocusedBorderColor = BorderGray
+                                focusedBorderColor = DeepTeal,
+                                unfocusedBorderColor = BorderGray,
+                                focusedTextColor = CharcoalText,
+                                unfocusedTextColor = CharcoalText
                             )
                         )
                         Spacer(Modifier.height(24.dp))

@@ -18,7 +18,9 @@ import androidx.core.view.WindowCompat
 private val DarkColorScheme = darkColorScheme(
     primary = DeepTeal,
     secondary = CoralOrange,
-    tertiary = MintGreen
+    tertiary = MintGreen,
+    onSurface = SurfaceWhite,
+    onBackground = SurfaceWhite
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -26,7 +28,10 @@ private val LightColorScheme = lightColorScheme(
     secondary = CoralOrange,
     tertiary = MintGreen,
     background = AppBackground,
-    surface = SurfaceWhite
+    surface = SurfaceWhite,
+    onSurface = CharcoalText,
+    onBackground = CharcoalText,
+    onSurfaceVariant = SlateGray
 )
 
 @Composable

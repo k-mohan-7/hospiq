@@ -36,6 +36,7 @@ fun DoctorAppointmentsScreen(
     onNavigateToHospital: () -> Unit = {}
 ) {
     val doctorId = sessionManager.getDoctorId() ?: sessionManager.getUserId()
+    val context = androidx.compose.ui.platform.LocalContext.current
     var selectedFilter by remember { mutableStateOf("All") }
     val filters = listOf("All", "Pending", "Confirmed", "Past")
     val apptState by appointmentViewModel.appointmentsState.collectAsState()
@@ -54,6 +55,12 @@ fun DoctorAppointmentsScreen(
     val confirmedList = allAppointments.filter { it.status == "accepted" }
     val pastList = allAppointments.filter { it.status in listOf("completed", "rejected", "cancelled") }
     var selectedAppointmentForDetail by remember { mutableStateOf<Appointment?>(null) }
+    val healthReports by appointmentViewModel.healthReports.collectAsState()
+    LaunchedEffect(selectedAppointmentForDetail) {
+        selectedAppointmentForDetail?.let {
+            appointmentViewModel.loadPatientHealthReports(it.patientId)
+        }
+    }
 
     Scaffold(
         containerColor = AppBackground,
@@ -144,12 +151,12 @@ fun DoctorAppointmentsScreen(
                             AppointmentCard(
                                 appointment = appt, isDoctor = true,
                                 action1Label = "Accept", onAction1 = {
-                                    appointmentViewModel.acceptAppointment(appt.id) {
+                                    appointmentViewModel.acceptAppointment(context, appt.id) {
                                         appointmentViewModel.loadDoctorAppointments(doctorId)
                                     }
                                 },
                                 action2Label = "Reject", onAction2 = {
-                                    appointmentViewModel.rejectAppointment(appt.id) {
+                                    appointmentViewModel.rejectAppointment(context, appt.id) {
                                         appointmentViewModel.loadDoctorAppointments(doctorId)
                                     }
                                 },
@@ -210,12 +217,27 @@ fun DoctorAppointmentsScreen(
                 PatientDetailsAdviceDialog(
                     appointment = appt,
                     allAppointments = allAppointments,
+                    healthReports = healthReports,
                     onDismiss = { selectedAppointmentForDetail = null },
-                    onSubmitAdvice = { advice ->
-                        appointmentViewModel.submitDoctorAdvice(appt.id, advice) {
+                    onSubmitReport = { status, notes, docs, docNames ->
+                        appointmentViewModel.submitHealthReport(
+                            appointmentId = appt.id,
+                            patientId = appt.patientId,
+                            doctorId = appt.doctorId,
+                            healthStatus = status,
+                            notes = notes,
+                            documentBytesList = docs,
+                            documentNames = docNames
+                        ) {
                             selectedAppointmentForDetail = null
                             appointmentViewModel.loadDoctorAppointments(doctorId)
                         }
+                    },
+                    onEditReport = { reportId, status, notes ->
+                        appointmentViewModel.editHealthReport(reportId, appt.patientId, status, notes)
+                    },
+                    onDeleteReport = { reportId ->
+                        appointmentViewModel.deleteHealthReport(reportId, appt.patientId)
                     }
                 )
             }

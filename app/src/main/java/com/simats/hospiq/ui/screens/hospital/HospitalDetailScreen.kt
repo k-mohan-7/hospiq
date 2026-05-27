@@ -28,6 +28,7 @@ import com.simats.hospiq.viewmodels.HospitalDetailState
 import com.simats.hospiq.viewmodels.HospitalViewModel
 import coil.compose.AsyncImage
 import com.simats.hospiq.network.ApiConfig
+import com.simats.hospiq.ui.components.HospitalsMapDialog
 
 @Composable
 fun HospitalDetailScreen(
@@ -36,6 +37,7 @@ fun HospitalDetailScreen(
     onDoctorClick: (Int) -> Unit,
     onBackClick: () -> Unit
 ) {
+    var showSingleMapDialog by remember { mutableStateOf(false) }
     val detailState by hospitalViewModel.detailState.collectAsState()
     val hospital = when (val s = detailState) {
         is HospitalDetailState.Success -> s.hospital
@@ -143,9 +145,25 @@ fun HospitalDetailScreen(
                 Column(modifier = Modifier.background(SurfaceWhite).padding(16.dp)) {
                     Text(hospital.name, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = DeepTeal)
                     Spacer(Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.LocationOn, null, tint = SlateGray, modifier = Modifier.size(14.dp))
-                        Text(hospital.address, fontSize = 13.sp, color = SlateGray)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.LocationOn, null, tint = SlateGray, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(hospital.address, fontSize = 13.sp, color = SlateGray)
+                        }
+                        TextButton(
+                            onClick = { showSingleMapDialog = true },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            modifier = Modifier.height(28.dp)
+                        ) {
+                            Icon(Icons.Default.Map, "Map", tint = DeepTeal, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("View on Map", color = DeepTeal, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                     Spacer(Modifier.height(10.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -230,6 +248,18 @@ fun HospitalDetailScreen(
                 Spacer(Modifier.height(16.dp))
             }
         }
+    }
+
+    if (showSingleMapDialog) {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        HospitalsMapDialog(
+            context = context,
+            hospitals = listOf(hospital),
+            userLat = null,
+            userLng = null,
+            onNavigateToHospitalDetail = {},
+            onDismiss = { showSingleMapDialog = false }
+        )
     }
 }
 }

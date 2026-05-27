@@ -30,6 +30,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
+import com.simats.hospiq.ui.components.OSMMapPicker
 
 
 @Composable
@@ -71,6 +72,7 @@ fun DoctorRegisterScreen(
     var specialization by remember { mutableStateOf("") }
     var licenseNumber by remember { mutableStateOf("") }
     var yearsExperience by remember { mutableStateOf("") }
+    var languagesSpoken by remember { mutableStateOf("English") }
     // Step 3
     var hospitalSearch by remember { mutableStateOf("") }
     var selectedHospitalId by remember { mutableStateOf<Int?>(null) }
@@ -82,6 +84,9 @@ fun DoctorRegisterScreen(
     var hospitalCity by remember { mutableStateOf("") }
     var hospitalType by remember { mutableStateOf("Multispecialty") }
     var typeExpanded by remember { mutableStateOf(false) }
+    var hospitalLatitude by remember { mutableStateOf<Double?>(null) }
+    var hospitalLongitude by remember { mutableStateOf<Double?>(null) }
+    var showMapPicker by remember { mutableStateOf(false) }
 
     var hospitalPhotoUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var hospitalPhotoBytes by remember { mutableStateOf<ByteArray?>(null) }
@@ -277,6 +282,7 @@ fun DoctorRegisterScreen(
                             RegField("Specialization", specialization, { specialization = it }, "e.g. Cardiologist")
                             RegField("License Number", licenseNumber, { licenseNumber = it }, "MCI-12345")
                             RegField("Years of Experience", yearsExperience, { yearsExperience = it }, "e.g. 10", KeyboardType.Number)
+                            RegField("Languages Spoken (comma-separated)", languagesSpoken, { languagesSpoken = it }, "e.g. English, Spanish, Hindi")
                             Spacer(Modifier.height(8.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 OutlinedButton(
@@ -351,7 +357,12 @@ fun DoctorRegisterScreen(
                                     placeholder = { Text("Search by name or city...", color = DisabledGray) },
                                     leadingIcon = { Icon(Icons.Default.Search, null, tint = SlateGray, modifier = Modifier.size(20.dp)) },
                                     shape = RoundedCornerShape(12.dp),
-                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = DeepTeal, unfocusedBorderColor = BorderGray),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = DeepTeal,
+                                        unfocusedBorderColor = BorderGray,
+                                        focusedTextColor = CharcoalText,
+                                        unfocusedTextColor = CharcoalText
+                                    ),
                                     singleLine = true
                                 )
                                 Spacer(Modifier.height(12.dp))
@@ -412,7 +423,12 @@ fun DoctorRegisterScreen(
                                             }
                                         },
                                         shape = RoundedCornerShape(12.dp),
-                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = DeepTeal, unfocusedBorderColor = BorderGray)
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = DeepTeal,
+                                            unfocusedBorderColor = BorderGray,
+                                            focusedTextColor = CharcoalText,
+                                            unfocusedTextColor = CharcoalText
+                                        )
                                     )
                                     DropdownMenu(
                                         expanded = typeExpanded,
@@ -468,6 +484,46 @@ fun DoctorRegisterScreen(
                                     )
                                 }
                                 Spacer(Modifier.height(16.dp))
+
+                                Text("Hospital GPS Location", fontSize = 13.sp, color = SlateGray, fontWeight = FontWeight.Medium)
+                                Spacer(Modifier.height(6.dp))
+                                OutlinedButton(
+                                    onClick = { showMapPicker = true },
+                                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, DeepTeal)
+                                ) {
+                                    Text(
+                                        if (hospitalLatitude != null && hospitalLongitude != null)
+                                            "📍 Location Selected: ${"%.4f".format(hospitalLatitude)}, ${"%.4f".format(hospitalLongitude)}"
+                                        else "🗺️ Select Location on Map",
+                                        color = DeepTeal,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                if (hospitalLatitude == null) {
+                                    Text(
+                                        "Hospital location coordinates are required",
+                                        color = Color.Red,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                }
+                                Spacer(Modifier.height(16.dp))
+
+                                if (showMapPicker) {
+                                    OSMMapPicker(
+                                        context = context,
+                                        initialLat = 13.0827,
+                                        initialLng = 80.2707,
+                                        onLocationSelected = { lat, lng ->
+                                            hospitalLatitude = lat
+                                            hospitalLongitude = lng
+                                        },
+                                        onDismiss = { showMapPicker = false }
+                                    )
+                                }
                             }
 
                             Spacer(Modifier.height(12.dp))
@@ -497,8 +553,8 @@ fun DoctorRegisterScreen(
                                     onClick = {
                                         if (!isCreatingHospital && selectedHospitalId == null) {
                                             android.widget.Toast.makeText(context, "Please select a hospital", android.widget.Toast.LENGTH_SHORT).show()
-                                        } else if (isCreatingHospital && (hospitalName.isBlank() || hospitalAddress.isBlank() || hospitalCity.isBlank() || hospitalPhotoBytes == null)) {
-                                            android.widget.Toast.makeText(context, "Please fill all hospital fields and upload a photo", android.widget.Toast.LENGTH_SHORT).show()
+                                        } else if (isCreatingHospital && (hospitalName.isBlank() || hospitalAddress.isBlank() || hospitalCity.isBlank() || hospitalPhotoBytes == null || hospitalLatitude == null || hospitalLongitude == null)) {
+                                            android.widget.Toast.makeText(context, "Please fill all hospital fields, select coordinates, and upload photo", android.widget.Toast.LENGTH_SHORT).show()
                                         } else {
                                             authViewModel.registerDoctor(
                                                 fullName = fullName,
@@ -509,12 +565,15 @@ fun DoctorRegisterScreen(
                                                 licenseNumber = licenseNumber,
                                                 yearsExp = yearsExperience.toIntOrNull() ?: 0,
                                                 bio = "${specialization} specialist",
+                                                languages = languagesSpoken,
                                                 hospitalId = selectedHospitalId ?: 0,
                                                 createHospital = isCreatingHospital,
                                                 hospitalName = hospitalName,
                                                 hospitalAddress = hospitalAddress,
                                                 hospitalCity = hospitalCity,
                                                 hospitalType = hospitalType,
+                                                hospitalLatitude = hospitalLatitude,
+                                                hospitalLongitude = hospitalLongitude,
                                                 profilePhotoBytes = profilePhotoBytes,
                                                 profilePhotoName = profilePhotoName,
                                                 hospitalPhotoBytes = hospitalPhotoBytes,
@@ -559,7 +618,12 @@ private fun RegField(
         shape = RoundedCornerShape(12.dp),
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = keyboard),
-        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = DeepTeal, unfocusedBorderColor = BorderGray)
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = DeepTeal,
+            unfocusedBorderColor = BorderGray,
+            focusedTextColor = CharcoalText,
+            unfocusedTextColor = CharcoalText
+        )
     )
     Spacer(Modifier.height(14.dp))
 }

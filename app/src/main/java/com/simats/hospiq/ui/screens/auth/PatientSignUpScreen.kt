@@ -117,7 +117,12 @@ fun PatientSignUpScreen(
                                     }
                                 }
                             } else null,
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = DeepTeal, unfocusedBorderColor = BorderGray)
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = DeepTeal,
+                                unfocusedBorderColor = BorderGray,
+                                focusedTextColor = CharcoalText,
+                                unfocusedTextColor = CharcoalText
+                            )
                         )
                         Spacer(Modifier.height(14.dp))
                     }

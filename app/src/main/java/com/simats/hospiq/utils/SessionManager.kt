@@ -52,4 +52,25 @@ class SessionManager(context: Context) {
             name.take(2).uppercase()
         }
     }
+
+    // ── Notification Preferences ──────────────────────────────────────────────
+    fun isNotificationsEnabled(): Boolean = prefs.getBoolean("notif_enabled", true)
+    fun setNotificationsEnabled(enabled: Boolean) = prefs.edit().putBoolean("notif_enabled", enabled).apply()
+
+    fun getNotificationReminderMinutes(): Int = prefs.getInt("notif_reminder_minutes", 30)
+    fun setNotificationReminderMinutes(minutes: Int) = prefs.edit().putInt("notif_reminder_minutes", minutes).apply()
+
+    fun isAppointmentNotifEnabled(): Boolean = prefs.getBoolean("notif_appointment", true)
+    fun setAppointmentNotifEnabled(enabled: Boolean) = prefs.edit().putBoolean("notif_appointment", enabled).apply()
+
+    fun isStatusNotifEnabled(): Boolean = prefs.getBoolean("notif_status", true)
+    fun setStatusNotifEnabled(enabled: Boolean) = prefs.edit().putBoolean("notif_status", enabled).apply()
+
+    // ── User Location Cache ───────────────────────────────────────────────────
+    fun saveLastLocation(lat: Double, lng: Double) {
+        prefs.edit().putFloat("last_lat", lat.toFloat()).putFloat("last_lng", lng.toFloat()).apply()
+    }
+    fun getLastLat(): Double = prefs.getFloat("last_lat", 0f).toDouble()
+    fun getLastLng(): Double = prefs.getFloat("last_lng", 0f).toDouble()
 }
+

@@ -12,6 +12,9 @@ import com.simats.hospiq.network.models.SubmitAdviceRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 sealed class AppointmentListState {
     object Loading : AppointmentListState()
@@ -108,19 +111,33 @@ class AppointmentViewModel : ViewModel() {
         }
     }
 
-    fun acceptAppointment(appointmentId: Int, onDone: () -> Unit = {}) {
+    fun acceptAppointment(context: android.content.Context, appointmentId: Int, onDone: () -> Unit = {}) {
         viewModelScope.launch {
             try {
-                RetrofitInstance.api.acceptAppointment(AppointmentActionRequest(appointmentId))
+                val res = RetrofitInstance.api.acceptAppointment(AppointmentActionRequest(appointmentId))
+                if (res.isSuccessful && res.body()?.success == true) {
+                    com.simats.hospiq.utils.NotificationService.showAppointmentNotification(
+                        context = context,
+                        title = "✅ Appointment Accepted",
+                        body = "The doctor has accepted your appointment request."
+                    )
+                }
             } catch (_: Exception) {}
             onDone()
         }
     }
 
-    fun rejectAppointment(appointmentId: Int, onDone: () -> Unit = {}) {
+    fun rejectAppointment(context: android.content.Context, appointmentId: Int, onDone: () -> Unit = {}) {
         viewModelScope.launch {
             try {
-                RetrofitInstance.api.rejectAppointment(AppointmentActionRequest(appointmentId))
+                val res = RetrofitInstance.api.rejectAppointment(AppointmentActionRequest(appointmentId))
+                if (res.isSuccessful && res.body()?.success == true) {
+                    com.simats.hospiq.utils.NotificationService.showAppointmentNotification(
+                        context = context,
+                        title = "❌ Appointment Rejected",
+                        body = "Your appointment request has been declined."
+                    )
+                }
             } catch (_: Exception) {}
             onDone()
         }
@@ -149,6 +166,116 @@ class AppointmentViewModel : ViewModel() {
             try {
                 RetrofitInstance.api.submitDoctorAdvice(SubmitAdviceRequest(appointmentId, advice))
             } catch (_: Exception) {}
+            onDone()
+        }
+    }
+
+    private val _healthReports = MutableStateFlow<List<com.simats.hospiq.network.models.HealthReport>>(emptyList())
+    val healthReports: StateFlow<List<com.simats.hospiq.network.models.HealthReport>> = _healthReports
+
+    fun loadPatientHealthReports(patientId: Int) {
+        viewModelScope.launch {
+            try {
+                val response = RetrofitInstance.api.getHealthReports(patientId = patientId)
+                if (response.isSuccessful && response.body()?.success == true) {
+                    _healthReports.value = response.body()!!.data?.reports ?: emptyList()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun submitHealthReport(
+        appointmentId: Int,
+        patientId: Int,
+        doctorId: Int,
+        healthStatus: String,
+        notes: String,
+        documentBytesList: List<ByteArray>,
+        documentNames: List<String>,
+        onDone: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            try {
+                fun String.toBody() = toRequestBody("text/plain".toMediaTypeOrNull())
+                
+                val docParts = documentBytesList.mapIndexed { idx, bytes ->
+                    val requestFile = bytes.toRequestBody("image/*".toMediaTypeOrNull(), 0, bytes.size)
+                    val fileName = documentNames.getOrNull(idx) ?: "doc_${System.currentTimeMillis()}_$idx.png"
+                    MultipartBody.Part.createFormData("documents[]", fileName, requestFile)
+                }
+
+                val res = RetrofitInstance.api.submitHealthReport(
+                    appointmentId = appointmentId.toString().toBody(),
+                    patientId = patientId.toString().toBody(),
+                    doctorId = doctorId.toString().toBody(),
+                    healthStatus = healthStatus.toBody(),
+                    notes = notes.toBody(),
+                    documents = docParts
+                )
+                if (res.isSuccessful) {
+                    loadPatientHealthReports(patientId)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            onDone()
+        }
+    }
+
+    fun editHealthReport(
+        reportId: Int,
+        patientId: Int,
+        healthStatus: String,
+        notes: String,
+        onDone: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            try {
+                val res = RetrofitInstance.api.editHealthReport(reportId, healthStatus, notes)
+                if (res.isSuccessful && res.body()?.success == true) {
+                    loadPatientHealthReports(patientId)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace();
+            }
+            onDone()
+        }
+    }
+
+    fun deleteHealthReport(
+        reportId: Int,
+        patientId: Int,
+        onDone: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            try {
+                val res = RetrofitInstance.api.deleteHealthReport(reportId)
+                if (res.isSuccessful && res.body()?.success == true) {
+                    loadPatientHealthReports(patientId)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            onDone()
+        }
+    }
+
+    fun rateHospital(hospitalId: Int, patientId: Int, rating: Int, review: String, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                RetrofitInstance.api.rateHospital(
+                    com.simats.hospiq.network.models.RateHospitalRequest(
+                        hospitalId = hospitalId,
+                        patientId = patientId,
+                        rating = rating,
+                        review = review
+                    )
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
             onDone()
         }
     }

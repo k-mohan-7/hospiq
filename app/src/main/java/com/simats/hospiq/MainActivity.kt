@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -40,12 +41,19 @@ import com.simats.hospiq.viewmodels.DoctorViewModel
 import com.simats.hospiq.viewmodels.HospitalViewModel
 import com.simats.hospiq.viewmodels.NotificationViewModel
 
+import com.simats.hospiq.utils.NotificationService
+import com.simats.hospiq.utils.AppointmentReminderWorker
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val sessionManager = SessionManager(this)
         // Wire token into Retrofit so every request is authenticated
         RetrofitInstance.tokenProvider = { sessionManager.getToken() }
+
+        // Initialize Notification Channels and schedule periodic background reminder worker
+        NotificationService.createChannels(this)
+        AppointmentReminderWorker.schedule(this)
 
         setContent {
             HospiQTheme {
@@ -295,7 +303,18 @@ fun HospiQNavHost(
                     } else {
                         navController.navigate(Screen.PatientNotifications.route)
                     }
+                },
+                onNavigateToSettings = {
+                    navController.navigate(Screen.NotificationSettings.route)
                 }
+            )
+        }
+
+        // ── Notification Settings ───────────────────────────────────────────
+        composable(Screen.NotificationSettings.route) {
+            com.simats.hospiq.ui.screens.settings.NotificationSettingsScreen(
+                sessionManager = sessionManager,
+                onBackClick = { navController.popBackStack() }
             )
         }
 

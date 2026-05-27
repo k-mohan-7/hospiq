@@ -46,6 +46,8 @@ fun PatientAppointmentsScreen(
     val filters = listOf("All", "Upcoming", "Completed", "Cancelled")
 
     var reschedulingAppointment by remember { mutableStateOf<Appointment?>(null) }
+    var ratingAppointment by remember { mutableStateOf<Appointment?>(null) }
+    var viewingSummaryAppointment by remember { mutableStateOf<Appointment?>(null) }
 
     val appointmentState by appointmentViewModel.appointmentsState.collectAsState()
     LaunchedEffect(Unit) { appointmentViewModel.loadPatientAppointments(sessionManager.getUserId()) }
@@ -165,7 +167,7 @@ fun PatientAppointmentsScreen(
                     items(filtered) { appointment ->
                         val (action1Label, action2Label) = when (appointment.status.lowercase()) {
                             "accepted", "pending", "rescheduled" -> "Reschedule" to "Cancel"
-                            "completed" -> "View Summary" to ""
+                            "completed" -> "Rate Hospital" to "View Summary"
                             "cancelled" -> "Rebook Appointment" to ""
                             else -> "" to ""
                         }
@@ -176,6 +178,8 @@ fun PatientAppointmentsScreen(
                             onAction1 = if (action1Label.isNotEmpty()) ({
                                 if (action1Label == "Reschedule") {
                                     reschedulingAppointment = appointment
+                                } else if (action1Label == "Rate Hospital") {
+                                    ratingAppointment = appointment
                                 }
                             }) else null,
                             action2Label = action2Label.takeIf { it.isNotEmpty() },
@@ -184,6 +188,8 @@ fun PatientAppointmentsScreen(
                                     appointmentViewModel.cancelAppointment(appointment.id) {
                                         appointmentViewModel.loadPatientAppointments(sessionManager.getUserId())
                                     }
+                                } else if (action2Label == "View Summary") {
+                                    viewingSummaryAppointment = appointment
                                 }
                             }) else null
                         )
@@ -199,6 +205,124 @@ fun PatientAppointmentsScreen(
                         appointmentViewModel.rescheduleAppointment(appt.id, newDate, newTime) {
                             appointmentViewModel.loadPatientAppointments(sessionManager.getUserId())
                             reschedulingAppointment = null
+                        }
+                    }
+                )
+            }
+
+            ratingAppointment?.let { appt ->
+                var rating by remember { mutableStateOf(5) }
+                var reviewText by remember { mutableStateOf("") }
+                var isSubmitting by remember { mutableStateOf(false) }
+
+                AlertDialog(
+                    onDismissRequest = { ratingAppointment = null },
+                    title = { Text("Rate Consultation", fontWeight = FontWeight.Bold, color = DeepTeal) },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("How was your experience with ${appt.doctorName}?", fontSize = 13.sp, color = SlateGray)
+                            
+                            Row(
+                                horizontalArrangement = Arrangement.Center,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)
+                            ) {
+                                (1..5).forEach { star ->
+                                    Text(
+                                        text = if (star <= rating) "⭐" else "☆",
+                                        fontSize = 28.sp,
+                                        modifier = Modifier
+                                            .clickable { rating = star }
+                                            .padding(horizontal = 4.dp)
+                                    )
+                                }
+                            }
+
+                            OutlinedTextField(
+                                value = reviewText,
+                                onValueChange = { reviewText = it },
+                                label = { Text("Review Details (Optional)") },
+                                placeholder = { Text("Share details of your consultation...") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                isSubmitting = true
+                                appointmentViewModel.rateHospital(
+                                    hospitalId = appt.hospitalId,
+                                    patientId = sessionManager.getUserId(),
+                                    rating = rating,
+                                    review = reviewText
+                                ) {
+                                    ratingAppointment = null
+                                    isSubmitting = false
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = DeepTeal),
+                            enabled = !isSubmitting
+                        ) {
+                            Text("Submit Review", color = Color.White)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { ratingAppointment = null }) {
+                            Text("Cancel", color = SlateGray)
+                        }
+                    }
+                )
+            }
+
+            viewingSummaryAppointment?.let { appt ->
+                AlertDialog(
+                    onDismissRequest = { viewingSummaryAppointment = null },
+                    title = { Text("Consultation Summary", fontWeight = FontWeight.Bold, color = DeepTeal) },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Column {
+                                Text("Doctor", fontSize = 11.sp, color = SlateGray, fontWeight = FontWeight.SemiBold)
+                                Text(appt.doctorName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CharcoalText)
+                                Text(appt.specialization, fontSize = 12.sp, color = DeepTeal)
+                            }
+
+                            HorizontalDivider(color = BorderGray, thickness = 0.5.dp)
+
+                            Column {
+                                Text("Illness & Symptoms", fontSize = 11.sp, color = SlateGray, fontWeight = FontWeight.SemiBold)
+                                Text(appt.illnessName ?: "General consultation", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = CharcoalText)
+                            }
+
+                            if (!appt.illnessDescription.isNullOrEmpty()) {
+                                Column {
+                                    Text("Description", fontSize = 11.sp, color = SlateGray, fontWeight = FontWeight.SemiBold)
+                                    Text(appt.illnessDescription, fontSize = 13.sp, color = CharcoalText)
+                                }
+                            }
+
+                            if (!appt.doctorAdvice.isNullOrEmpty()) {
+                                HorizontalDivider(color = BorderGray, thickness = 0.5.dp)
+                                Column {
+                                    Text("Medical Advice & Prescriptions", fontSize = 11.sp, color = SlateGray, fontWeight = FontWeight.SemiBold)
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(SoftTeal, RoundedCornerShape(8.dp))
+                                            .padding(10.dp)
+                                    ) {
+                                        Text(appt.doctorAdvice, fontSize = 13.sp, color = DeepTeal, fontWeight = FontWeight.Medium)
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = { viewingSummaryAppointment = null },
+                            colors = ButtonDefaults.buttonColors(containerColor = DeepTeal)
+                        ) {
+                            Text("Close", color = Color.White)
                         }
                     }
                 )

@@ -115,7 +115,14 @@ fun DoctorProfileScreen(
 
     val selectedSlot = slots.find { it.id == selectedSlotId }
     
-    val filteredSlots = slots
+    // RESTRICT slots using doctor's availability slots if enabled
+    val filteredSlots = if (DemoData.dynamicTimingsEnabled) {
+        slots.filter { DemoData.activeSlots.contains(it.id) }
+    } else {
+        slots
+    }
+    val morningSlots = filteredSlots.filter { it.id <= 6 }
+    val afternoonSlots = filteredSlots.filter { it.id > 6 }
 
     Scaffold(
         containerColor = AppBackground,
@@ -206,7 +213,7 @@ fun DoctorProfileScreen(
                 doctorId = doctorId,
                 onDismiss = {
                     showAvailabilitySettings = false
-                    doctorViewModel.loadDoctorProfile(doctorId, selectedDateString)
+                    doctorViewModel.loadDoctorProfile(doctorId)
                 }
             )
         }
@@ -333,7 +340,13 @@ fun DoctorProfileScreen(
                     // Slots
                     Text("Available Slots", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = CharcoalText)
                     Spacer(Modifier.height(8.dp))
-                    SlotGrid(slots = filteredSlots, selectedSlotId = selectedSlotId, onSlotClick = { selectedSlotId = it })
+                    Text("MORNING", fontSize = 11.sp, color = SlateGray, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(8.dp))
+                    SlotGrid(slots = morningSlots, selectedSlotId = selectedSlotId, onSlotClick = { selectedSlotId = it })
+                    Spacer(Modifier.height(12.dp))
+                    Text("AFTERNOON", fontSize = 11.sp, color = SlateGray, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(8.dp))
+                    SlotGrid(slots = afternoonSlots, selectedSlotId = selectedSlotId, onSlotClick = { selectedSlotId = it })
                 }
             }
 

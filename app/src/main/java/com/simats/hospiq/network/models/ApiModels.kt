@@ -48,7 +48,9 @@ data class Hospital(
     val distance: Float = 0f,
     val facilities: List<String> = emptyList(),
     val specialties: List<String> = emptyList(),
-    @SerializedName("doctor_count") val doctorCount: Int = 0
+    @SerializedName("doctor_count") val doctorCount: Int = 0,
+    val latitude: Double? = null,
+    val longitude: Double? = null
 )
 
 data class HospitalListData(val hospitals: List<Hospital>)
@@ -67,11 +69,33 @@ data class Doctor(
     val status: String = "available",
     val photo: String? = null,
     val bio: String = "",
+    val languages: String = "English",
     @SerializedName("dynamic_timings") val dynamicTimings: Boolean = true,
     @SerializedName("active_slots") val activeSlots: String = "1,2,3,4,5,6,7,8,9,10,11,12"
 )
 
 data class DoctorListData(val doctors: List<Doctor>)
+
+data class HealthReportDocument(
+    val id: Int? = 0,
+    @SerializedName("file_path") val filePath: String? = "",
+    @SerializedName("file_type") val fileType: String? = ""
+)
+
+data class HealthReport(
+    val id: Int? = 0,
+    @SerializedName("appointment_id") val appointmentId: Int? = 0,
+    @SerializedName("patient_id") val patientId: Int? = 0,
+    @SerializedName("doctor_id") val doctorId: Int? = 0,
+    @SerializedName("health_status") val healthStatus: String? = "Stable",
+    val notes: String? = "",
+    @SerializedName("created_at") val createdAt: String? = "",
+    @SerializedName("doctor_name") val doctorName: String? = "Specialist",
+    val specialization: String? = "Expert",
+    val documents: List<HealthReportDocument>? = emptyList()
+)
+
+data class HealthReportListData(val reports: List<HealthReport>)
 
 data class DoctorStatusRequest(
     @SerializedName("doctor_id") val doctorId: Int,
@@ -177,4 +201,23 @@ data class User(
     val hospitalId: Int? = null,
     val hospitalName: String? = null,
     val specialization: String? = null
+)
+
+// ── Doctor Patient ───────────────────────────────────────────────────────────
+data class DoctorPatient(
+    @SerializedName("patient_id") val patientId: Int = 0,
+    @SerializedName("full_name") val fullName: String = "",
+    @SerializedName("profile_photo") val profilePhoto: String? = null,
+    @SerializedName("total_appointments") val totalAppointments: Int = 0,
+    @SerializedName("last_appointment_date") val lastAppointmentDate: String = "",
+    @SerializedName("last_illness_name") val lastIllnessName: String? = null
+)
+
+data class DoctorPatientListData(val patients: List<DoctorPatient>)
+
+data class RateHospitalRequest(
+    @SerializedName("hospital_id") val hospitalId: Int,
+    @SerializedName("patient_id") val patientId: Int,
+    val rating: Int,
+    val review: String?
 )
