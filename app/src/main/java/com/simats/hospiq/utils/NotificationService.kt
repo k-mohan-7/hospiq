@@ -20,6 +20,10 @@ object NotificationService {
     private const val CHANNEL_REMINDER = "hospiq_reminders"
     private const val CHANNEL_GENERAL = "hospiq_general"
 
+    // Thread-safe process-level cache to prevent concurrent double-triggering
+    private val notifiedIds = java.util.Collections.synchronizedSet(HashSet<Int>())
+    @Volatile private var isChecking = false
+
     fun createChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -68,44 +72,79 @@ object NotificationService {
         showNotification(context, CHANNEL_GENERAL, title, body, notifId)
     }
 
-    fun isNotified(context: Context, id: Int): Boolean {
+    fun isNotified(context: Context, userId: Int, id: Int): Boolean {
+        if (notifiedIds.contains(id)) return true
+        
         val prefs = context.getSharedPreferences("hospiq_notif_prefs", Context.MODE_PRIVATE)
-        val current = prefs.getStringSet("shown_ids", emptySet()) ?: emptySet()
-        return current.contains(id.toString())
+        val shownIdsStr = prefs.getString("shown_ids_list_$userId", "") ?: ""
+        val idList = shownIdsStr.split(",")
+        if (idList.contains(id.toString())) {
+            notifiedIds.add(id)
+            return true
+        }
+        return false
     }
 
-    fun markAsNotified(context: Context, id: Int) {
+    fun markAsNotified(context: Context, userId: Int, id: Int) {
+        notifiedIds.add(id)
+        
         val prefs = context.getSharedPreferences("hospiq_notif_prefs", Context.MODE_PRIVATE)
-        val current = prefs.getStringSet("shown_ids", emptySet()) ?: emptySet()
-        val updated = current.toMutableSet().apply { add(id.toString()) }
-        prefs.edit().putStringSet("shown_ids", updated).apply()
+        val shownIdsStr = prefs.getString("shown_ids_list_$userId", "") ?: ""
+        val updatedStr = if (shownIdsStr.isEmpty()) id.toString() else "$shownIdsStr,${id}"
+        prefs.edit().putString("shown_ids_list_$userId", updatedStr).apply()
+    }
+
+    fun clearCache() {
+        notifiedIds.clear()
     }
 
     fun checkForNewNotifications(context: Context, userId: Int) {
+        synchronized(this) {
+            if (isChecking) return
+            isChecking = true
+        }
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val response = RetrofitInstance.api.getNotifications(userId)
                 if (response.isSuccessful && response.body()?.success == true) {
                     val notifications = response.body()!!.data?.notifications ?: return@launch
-                    for (notif in notifications) {
-                        if (!notif.isRead && !isNotified(context, notif.id)) {
-                            showNotification(
-                                context = context,
-                                channelId = when (notif.type) {
-                                    "appointment" -> CHANNEL_APPOINTMENT
-                                    "reminder" -> CHANNEL_REMINDER
-                                    else -> CHANNEL_GENERAL
-                                },
-                                title = notif.title,
-                                body = notif.body,
-                                notifId = notif.id
-                            )
-                            markAsNotified(context, notif.id)
+                    
+                    val mainPrefs = context.getSharedPreferences("hospiq_prefs", Context.MODE_PRIVATE)
+                    val firstFetchKey = "first_fetch_done_$userId"
+                    val isFirstFetch = !mainPrefs.getBoolean(firstFetchKey, false)
+                    
+                    if (isFirstFetch) {
+                        // Mark all existing unread notifications as notified on first fetch (login/fresh boot)
+                        for (notif in notifications) {
+                            markAsNotified(context, userId, notif.id)
+                        }
+                        mainPrefs.edit().putBoolean(firstFetchKey, true).apply()
+                    } else {
+                        // Normal real-time check for newly generated unread alerts
+                        for (notif in notifications) {
+                            if (!notif.isRead && !isNotified(context, userId, notif.id)) {
+                                showNotification(
+                                    context = context,
+                                    channelId = when (notif.type) {
+                                        "appointment" -> CHANNEL_APPOINTMENT
+                                        "reminder" -> CHANNEL_REMINDER
+                                        else -> CHANNEL_GENERAL
+                                    },
+                                    title = notif.title,
+                                    body = notif.body,
+                                    notifId = notif.id
+                                )
+                                markAsNotified(context, userId, notif.id)
+                            }
                         }
                     }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+            } finally {
+                synchronized(this@NotificationService) {
+                    isChecking = false
+                }
             }
         }
     }

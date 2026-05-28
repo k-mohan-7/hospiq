@@ -41,7 +41,10 @@ class SessionManager(context: Context) {
         return if (id == -1) null else id
     }
     fun isLoggedIn(): Boolean = getToken() != null
-    fun clearSession() = prefs.edit().clear().apply()
+    fun clearSession() {
+        prefs.edit().clear().apply()
+        com.simats.hospiq.utils.NotificationService.clearCache()
+    }
 
     fun getInitials(): String {
         val name = getName() ?: return "?"
