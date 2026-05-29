@@ -158,6 +158,8 @@ fun HospiQNavHost(
             PatientSignUpScreen(
                 authViewModel = authViewModel,
                 onSignUpSuccess = { token, userId, role, name, hospitalId, phone, profilePhoto, doctorId ->
+                    appointmentViewModel.resetAll()
+                    doctorViewModel.resetAll()
                     sessionManager.saveSession(token, userId, role, name, hospitalId, phone, profilePhoto, doctorId)
                     navController.navigate(Screen.PatientHome.route) { popUpTo(0) }
                 },
@@ -170,6 +172,8 @@ fun HospiQNavHost(
             PatientLoginScreen(
                 authViewModel = authViewModel,
                 onLoginSuccess = { token, userId, role, name, hospitalId, phone, profilePhoto, doctorId ->
+                    appointmentViewModel.resetAll()
+                    doctorViewModel.resetAll()
                     sessionManager.saveSession(token, userId, role, name, hospitalId, phone, profilePhoto, doctorId)
                     // ✅ Route based on actual role from server
                     if (role == "doctor") {
@@ -187,6 +191,8 @@ fun HospiQNavHost(
             DoctorRegisterScreen(
                 authViewModel = authViewModel,
                 onRegistrationComplete = { token, userId, role, name, hospitalId, phone, profilePhoto, doctorId ->
+                    appointmentViewModel.resetAll()
+                    doctorViewModel.resetAll()
                     sessionManager.saveSession(token, userId, role, name, hospitalId, phone, profilePhoto, doctorId)
                     navController.navigate(Screen.DoctorDashboard.route) { popUpTo(0) }
                 },
@@ -200,7 +206,7 @@ fun HospiQNavHost(
                 sessionManager = sessionManager,
                 hospitalViewModel = hospitalViewModel,
                 appointmentViewModel = appointmentViewModel,
-                onNavigateToHospitalDetail = { id -> navController.navigate(hospitalDetailRoute(id)) },
+                onNavigateToHospitalDetail = { id, lat, lng -> navController.navigate(hospitalDetailRoute(id, lat, lng)) },
                 onNavigateToSearch = { navController.navigate(Screen.Search.route) },
                 onNavigateToAppointments = { navController.navigate(Screen.PatientAppointments.route) },
                 onNavigateToNotifications = { navController.navigate(Screen.PatientNotifications.route) },
@@ -211,11 +217,21 @@ fun HospiQNavHost(
         // ── Hospital Detail ──────────────────────────────────────────────────
         composable(
             route = Screen.HospitalDetail.route,
-            arguments = listOf(navArgument("hospitalId") { type = NavType.IntType })
+            arguments = listOf(
+                navArgument("hospitalId") { type = NavType.IntType },
+                navArgument("lat") { type = NavType.StringType; nullable = true; defaultValue = null },
+                navArgument("lng") { type = NavType.StringType; nullable = true; defaultValue = null }
+            )
         ) { backStackEntry ->
             val hospitalId = backStackEntry.arguments?.getInt("hospitalId") ?: 1
+            val latStr = backStackEntry.arguments?.getString("lat")
+            val lngStr = backStackEntry.arguments?.getString("lng")
+            val lat = latStr?.toDoubleOrNull()
+            val lng = lngStr?.toDoubleOrNull()
             HospitalDetailScreen(
                 hospitalId = hospitalId,
+                userLatitude = lat,
+                userLongitude = lng,
                 hospitalViewModel = hospitalViewModel,
                 onDoctorClick = { doctorId -> navController.navigate(doctorProfileRoute(doctorId)) },
                 onBackClick = { navController.popBackStack() }
@@ -277,7 +293,7 @@ fun HospiQNavHost(
         composable(Screen.Search.route) {
             SearchScreen(
                 hospitalViewModel = hospitalViewModel,
-                onHospitalClick = { id -> navController.navigate(hospitalDetailRoute(id)) },
+                onHospitalClick = { id, lat, lng -> navController.navigate(hospitalDetailRoute(id, lat, lng)) },
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToHome = { navController.navigate(Screen.PatientHome.route) { popUpTo(0) } },
                 onNavigateToAppointments = { navController.navigate(Screen.PatientAppointments.route) },

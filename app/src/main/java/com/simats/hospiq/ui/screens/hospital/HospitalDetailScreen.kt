@@ -33,6 +33,8 @@ import com.simats.hospiq.ui.components.HospitalsMapDialog
 @Composable
 fun HospitalDetailScreen(
     hospitalId: Int,
+    userLatitude: Double?,
+    userLongitude: Double?,
     hospitalViewModel: HospitalViewModel,
     onDoctorClick: (Int) -> Unit,
     onBackClick: () -> Unit
@@ -48,7 +50,7 @@ fun HospitalDetailScreen(
         else -> DemoData.doctors.filter { it.hospitalId == hospitalId }
     }
 
-    LaunchedEffect(hospitalId) { hospitalViewModel.loadHospitalDetail(hospitalId) }
+    LaunchedEffect(hospitalId) { hospitalViewModel.loadHospitalDetail(hospitalId, userLatitude, userLongitude) }
 
     val facilityIcons = mapOf(
         "ICU" to "🏥", "Emergency" to "🚨", "Pharmacy" to "💊",
@@ -255,8 +257,8 @@ fun HospitalDetailScreen(
         HospitalsMapDialog(
             context = context,
             hospitals = listOf(hospital),
-            userLat = null,
-            userLng = null,
+            userLat = userLatitude,
+            userLng = userLongitude,
             onNavigateToHospitalDetail = {},
             onDismiss = { showSingleMapDialog = false }
         )

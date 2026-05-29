@@ -37,6 +37,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import com.simats.hospiq.ui.components.OSMMapPicker
+import android.Manifest
+import com.google.android.gms.location.LocationServices
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Map
 
 // ── Password strength helpers (shared between auth screens) ──────────────────
 private fun drPasswordStrengthLevel(password: String): Int {
@@ -176,6 +180,31 @@ fun DoctorRegisterScreen(
     var hospitalLatitude by remember { mutableStateOf<Double?>(null) }
     var hospitalLongitude by remember { mutableStateOf<Double?>(null) }
     var showMapPicker by remember { mutableStateOf(false) }
+
+    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+    val registerLocationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineLocationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        if (fineLocationGranted || coarseLocationGranted) {
+            try {
+                fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
+                    if (loc != null) {
+                        hospitalLatitude = loc.latitude
+                        hospitalLongitude = loc.longitude
+                        android.widget.Toast.makeText(context, "Location set: ${loc.latitude}, ${loc.longitude}", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        android.widget.Toast.makeText(context, "Failed to get current location. Select on map.", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: SecurityException) {
+                android.widget.Toast.makeText(context, "Location permission denied", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            android.widget.Toast.makeText(context, "Location permission denied", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
 
     var hospitalPhotoUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var hospitalPhotoBytes by remember { mutableStateOf<ByteArray?>(null) }
@@ -656,18 +685,44 @@ fun DoctorRegisterScreen(
 
                                 Text("Hospital GPS Location", fontSize = 13.sp, color = SlateGray, fontWeight = FontWeight.Medium)
                                 Spacer(Modifier.height(6.dp))
-                                OutlinedButton(
-                                    onClick = { showMapPicker = true },
-                                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, DeepTeal)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            registerLocationPermissionLauncher.launch(
+                                                arrayOf(
+                                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                                )
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f).height(48.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, DeepTeal)
+                                    ) {
+                                        Icon(Icons.Default.MyLocation, "Current Location", tint = DeepTeal, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Current Location", color = DeepTeal, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    }
+                                    OutlinedButton(
+                                        onClick = { showMapPicker = true },
+                                        modifier = Modifier.weight(1f).height(48.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, DeepTeal)
+                                    ) {
+                                        Icon(Icons.Default.Map, "Map Picker", tint = DeepTeal, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Map Picker", color = DeepTeal, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    }
+                                }
+                                if (hospitalLatitude != null && hospitalLongitude != null) {
+                                    Spacer(Modifier.height(6.dp))
                                     Text(
-                                        if (hospitalLatitude != null && hospitalLongitude != null)
-                                            "📍 Location Selected: ${"%.4f".format(hospitalLatitude)}, ${"%.4f".format(hospitalLongitude)}"
-                                        else "🗺️ Select Location on Map",
-                                        color = DeepTeal,
-                                        fontWeight = FontWeight.Bold
+                                        "📍 Location: ${"%.4f".format(hospitalLatitude)}, ${"%.4f".format(hospitalLongitude)}",
+                                        color = DeepTeal, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(start = 4.dp)
                                     )
                                 }
                                 if (hospitalLatitude == null) {

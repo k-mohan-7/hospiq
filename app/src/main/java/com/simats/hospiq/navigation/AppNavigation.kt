@@ -7,7 +7,7 @@ sealed class Screen(val route: String) {
     object PatientSignUp        : Screen("patient_signup")
     object DoctorRegister       : Screen("doctor_register")
     object PatientHome          : Screen("patient_home")
-    object HospitalDetail       : Screen("hospital_detail/{hospitalId}")
+    object HospitalDetail       : Screen("hospital_detail/{hospitalId}?lat={lat}&lng={lng}")
     object DoctorProfile        : Screen("doctor_profile/{doctorId}")
     object Booking              : Screen("booking/{doctorId}/{slotId}")
     object AppointmentConfirm   : Screen("appointment_confirm/{appointmentId}")
@@ -22,7 +22,13 @@ sealed class Screen(val route: String) {
     object NotificationSettings : Screen("notification_settings")
 }
 
-fun hospitalDetailRoute(id: Int) = "hospital_detail/$id"
+fun hospitalDetailRoute(id: Int, lat: Double? = null, lng: Double? = null): String {
+    return if (lat != null && lng != null) {
+        "hospital_detail/$id?lat=$lat&lng=$lng"
+    } else {
+        "hospital_detail/$id"
+    }
+}
 fun doctorProfileRoute(id: Int) = "doctor_profile/$id"
 fun bookingRoute(doctorId: Int, slotId: Int) = "booking/$doctorId/$slotId"
 fun appointmentConfirmRoute(appointmentId: Int) = "appointment_confirm/$appointmentId"

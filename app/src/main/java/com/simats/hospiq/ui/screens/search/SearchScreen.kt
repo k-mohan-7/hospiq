@@ -1,6 +1,11 @@
 package com.simats.hospiq.ui.screens.search
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
+import com.google.android.gms.location.LocationServices
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -27,13 +32,58 @@ import com.simats.hospiq.navigation.Screen
 @Composable
 fun SearchScreen(
     hospitalViewModel: HospitalViewModel,
-    onHospitalClick: (Int) -> Unit,
+    onHospitalClick: (Int, Double?, Double?) -> Unit,
     onNavigateBack: () -> Unit,
     onNavigateToHome: () -> Unit,
     onNavigateToAppointments: () -> Unit,
     onNavigateToNotifications: () -> Unit,
     onNavigateToProfile: () -> Unit
 ) {
+    val context = LocalContext.current
+    var userLatitude by remember { mutableStateOf<Double?>(null) }
+    var userLongitude by remember { mutableStateOf<Double?>(null) }
+
+    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineLocationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        if (fineLocationGranted || coarseLocationGranted) {
+            try {
+                fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
+                    if (loc != null) {
+                        userLatitude = loc.latitude
+                        userLongitude = loc.longitude
+                        hospitalViewModel.loadHospitals(loc.latitude, loc.longitude)
+                    } else {
+                        userLatitude = 13.0827
+                        userLongitude = 80.2707
+                        hospitalViewModel.loadHospitals(13.0827, 80.2707)
+                    }
+                }
+            } catch (e: SecurityException) {
+                userLatitude = 13.0827
+                userLongitude = 80.2707
+                hospitalViewModel.loadHospitals(13.0827, 80.2707)
+            }
+        } else {
+            userLatitude = 13.0827
+            userLongitude = 80.2707
+            hospitalViewModel.loadHospitals(13.0827, 80.2707)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        permissionLauncher.launch(
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        )
+    }
+
     var query by remember { mutableStateOf("") }
     var showFilter by remember { mutableStateOf(false) }
     var selectedSpecialty by remember { mutableStateOf("") }
@@ -44,7 +94,6 @@ fun SearchScreen(
     val ratings = listOf("3+", "3.5+", "4.0+", "4.5+")
 
     val hospitalState by hospitalViewModel.listState.collectAsState()
-    LaunchedEffect(Unit) { hospitalViewModel.loadHospitals() }
     val allHospitals = when (val s = hospitalState) {
         is HospitalUiState.Success -> s.topRatedHospitals
         else -> DemoData.hospitals
@@ -164,7 +213,7 @@ fun SearchScreen(
                 item { EmptyState(title = "No results found", subtitle = "Try adjusting your search or filters") }
             } else {
                 items(results) { hospital ->
-                    HospitalCard(hospital = hospital, onClick = { onHospitalClick(hospital.id) })
+                    HospitalCard(hospital = hospital, onClick = { onHospitalClick(hospital.id, userLatitude, userLongitude) })
                 }
             }
         }

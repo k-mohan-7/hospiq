@@ -56,7 +56,11 @@ interface ApiService {
     ): Response<ApiResponse<HospitalListData>>
 
     @GET("hospitals/get_by_id.php")
-    suspend fun getHospitalById(@Query("id") id: Int): Response<ApiResponse<Hospital>>
+    suspend fun getHospitalById(
+        @Query("id") id: Int,
+        @Query("lat") lat: Double? = null,
+        @Query("lng") lng: Double? = null
+    ): Response<ApiResponse<Hospital>>
 
     @GET("hospitals/get_nearby.php")
     suspend fun getNearbyHospitals(

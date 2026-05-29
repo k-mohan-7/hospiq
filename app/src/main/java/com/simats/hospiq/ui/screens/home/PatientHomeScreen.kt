@@ -49,7 +49,7 @@ fun PatientHomeScreen(
     sessionManager: SessionManager,
     hospitalViewModel: HospitalViewModel,
     appointmentViewModel: com.simats.hospiq.viewmodels.AppointmentViewModel,
-    onNavigateToHospitalDetail: (Int) -> Unit,
+    onNavigateToHospitalDetail: (Int, Double?, Double?) -> Unit,
     onNavigateToSearch: () -> Unit,
     onNavigateToAppointments: () -> Unit,
     onNavigateToNotifications: () -> Unit,
@@ -227,7 +227,7 @@ fun PatientHomeScreen(
                         items(nearbyHospitals) { hospital ->
                             HospitalCard(
                                 hospital = hospital,
-                                onClick = { onNavigateToHospitalDetail(hospital.id) },
+                                onClick = { onNavigateToHospitalDetail(hospital.id, userLatitude, userLongitude) },
                                 modifier = Modifier.width(260.dp)
                             )
                         }
@@ -334,7 +334,7 @@ fun PatientHomeScreen(
             items(topRatedHospitals) { hospital ->
                 HospitalCard(
                     hospital = hospital,
-                    onClick = { onNavigateToHospitalDetail(hospital.id) },
+                    onClick = { onNavigateToHospitalDetail(hospital.id, userLatitude, userLongitude) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 6.dp)
@@ -350,7 +350,7 @@ fun PatientHomeScreen(
             hospitals = uniqueHops,
             userLat = userLatitude,
             userLng = userLongitude,
-            onNavigateToHospitalDetail = onNavigateToHospitalDetail,
+            onNavigateToHospitalDetail = { id -> onNavigateToHospitalDetail(id, userLatitude, userLongitude) },
             onDismiss = { showMapDialog = false }
         )
     }

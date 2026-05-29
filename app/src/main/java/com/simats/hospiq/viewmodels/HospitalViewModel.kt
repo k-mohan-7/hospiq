@@ -84,11 +84,11 @@ class HospitalViewModel : ViewModel() {
         }
     }
 
-    fun loadHospitalDetail(hospitalId: Int) {
+    fun loadHospitalDetail(hospitalId: Int, lat: Double? = null, lng: Double? = null) {
         viewModelScope.launch {
             _detailState.value = HospitalDetailState.Loading
             try {
-                val hospResponse = RetrofitInstance.api.getHospitalById(hospitalId)
+                val hospResponse = RetrofitInstance.api.getHospitalById(hospitalId, lat, lng)
                 val docResponse = RetrofitInstance.api.getDoctorsByHospital(hospitalId)
                 val hospital = hospResponse.body()?.data
                 val doctors = docResponse.body()?.data?.doctors ?: emptyList()
