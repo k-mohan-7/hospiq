@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
@@ -89,6 +90,8 @@ fun PatientDetailsAdviceDialog(
 ) {
     val context = LocalContext.current
     var adviceText by remember { mutableStateOf(appointment.doctorAdvice ?: "") }
+    var isEditingAdvice by remember { mutableStateOf(false) }
+    var adviceInputText by remember { mutableStateOf(appointment.doctorAdvice ?: "") }
     var healthStatus by remember { mutableStateOf("Stable") }
     var isSubmitting by remember { mutableStateOf(false) }
 
@@ -280,6 +283,150 @@ fun PatientDetailsAdviceDialog(
                                         fontSize = 14.sp,
                                         color = CharcoalText
                                     )
+                                }
+                            }
+                        }
+                    }
+
+                    // 2b. Doctor's Advice & Prescription Card (Dedicated edit for this feature, separate from health reports)
+                    if (!showAsPatientProfile && appointment.id > 0) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Doctor's Advice & Prescription",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = DeepTeal
+                                    )
+                                    
+                                    if (!isEditingAdvice) {
+                                        TextButton(
+                                            onClick = {
+                                                isEditingAdvice = true
+                                                adviceInputText = appointment.doctorAdvice ?: ""
+                                            },
+                                            contentPadding = PaddingValues(0.dp),
+                                            modifier = Modifier.height(24.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Edit,
+                                                contentDescription = "Edit Advice",
+                                                tint = DeepTeal,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(
+                                                text = if (appointment.doctorAdvice.isNullOrBlank()) "Add Advice" else "Edit Advice",
+                                                fontSize = 12.sp,
+                                                color = DeepTeal,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
+                                }
+                                
+                                if (isEditingAdvice) {
+                                    OutlinedTextField(
+                                        value = adviceInputText,
+                                        onValueChange = { adviceInputText = it },
+                                        placeholder = { Text("Enter prescriptions, dosage, or medical advice...") },
+                                        modifier = Modifier.fillMaxWidth().height(100.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = DeepTeal,
+                                            unfocusedBorderColor = BorderGray,
+                                            focusedTextColor = CharcoalText,
+                                            unfocusedTextColor = CharcoalText
+                                        ),
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                                    ) {
+                                        Button(
+                                            onClick = {
+                                                onSubmitAdvice(adviceInputText)
+                                                isEditingAdvice = false
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = DeepTeal)
+                                        ) {
+                                            Text("Save Advice", fontSize = 12.sp, color = Color.White)
+                                        }
+                                        
+                                        OutlinedButton(
+                                            onClick = {
+                                                isEditingAdvice = false
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = CharcoalText)
+                                        ) {
+                                            Text("Cancel", fontSize = 12.sp)
+                                        }
+                                    }
+                                } else {
+                                    if (appointment.doctorAdvice.isNullOrBlank()) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(SoftTeal.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                                .padding(12.dp)
+                                        ) {
+                                            Text(
+                                                text = "No medical advice or prescription added yet for this appointment. Click 'Add Advice' to provide guidance.",
+                                                fontSize = 12.sp,
+                                                color = SlateGray,
+                                                lineHeight = 16.sp
+                                            )
+                                        }
+                                    } else {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(SoftTeal.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
+                                                .padding(12.dp),
+                                            verticalAlignment = Alignment.Top,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Favorite,
+                                                contentDescription = null,
+                                                tint = CoralOrange,
+                                                modifier = Modifier.size(16.dp).padding(top = 2.dp)
+                                            )
+                                            Column {
+                                                Text(
+                                                    text = "Treatment & Prescription:",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = CoralOrange
+                                                )
+                                                Spacer(Modifier.height(2.dp))
+                                                Text(
+                                                    text = appointment.doctorAdvice,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = CharcoalText,
+                                                    lineHeight = 18.sp
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

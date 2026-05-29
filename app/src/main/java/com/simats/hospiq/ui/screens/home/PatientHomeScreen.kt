@@ -297,6 +297,8 @@ fun PatientHomeScreen(
                 item {
                     SectionHeader(
                         title = "Doctor's advice & prescriptions",
+                        actionLabel = "View All",
+                        onActionClick = onNavigateToAppointments,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                     )
                 }

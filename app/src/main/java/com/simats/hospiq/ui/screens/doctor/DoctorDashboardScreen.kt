@@ -423,6 +423,13 @@ fun DoctorDashboardScreen(
                         selectedAppointmentForDetail = null
                         isFromPatientCard = false
                     },
+                    onSubmitAdvice = { advice ->
+                        appointmentViewModel.submitDoctorAdvice(appt.id, advice) {
+                            selectedAppointmentForDetail = null
+                            isFromPatientCard = false
+                            appointmentViewModel.loadDoctorAppointments(doctorId)
+                        }
+                    },
                     onSubmitReport = { status, notes, docs, docNames ->
                         appointmentViewModel.submitHealthReport(
                             appointmentId = appt.id,
