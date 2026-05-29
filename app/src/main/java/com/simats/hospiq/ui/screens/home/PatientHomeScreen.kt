@@ -300,13 +300,19 @@ fun PatientHomeScreen(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                     )
                 }
-                items(adviceAppointments) { appt ->
-                    DoctorAdviceCard(
-                        appointment = appt,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp)
-                    )
+                
+                // Group the advice list dynamically by doctorName
+                val groupedAdvices = adviceAppointments.groupBy { it.doctorName }
+                groupedAdvices.forEach { (doctorName, doctorAppts) ->
+                    item {
+                        GroupedDoctorAdviceCard(
+                            doctorName = doctorName,
+                            appointments = doctorAppts,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp)
+                        )
+                    }
                 }
             }
 
@@ -731,102 +737,136 @@ fun RecentAppointmentItem(
 }
 
 @Composable
-fun DoctorAdviceCard(
-    appointment: Appointment,
+fun GroupedDoctorAdviceCard(
+    doctorName: String,
+    appointments: List<Appointment>,
     modifier: Modifier = Modifier
 ) {
+    val firstAppt = appointments.firstOrNull() ?: return
     Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SoftTeal.copy(alpha = 0.4f)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, DeepTeal.copy(alpha = 0.3f)),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = modifier
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Header Row: Doctor Icon/Initials & Doctor Name
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MedicalServices,
-                        contentDescription = "Medical Service",
-                        tint = DeepTeal,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = "Advice from ${appointment.doctorName}",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = CharcoalText
-                    )
-                }
                 Box(
                     modifier = Modifier
-                        .background(DeepTeal.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .size(40.dp)
+                        .background(SoftTeal, CircleShape),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = appointment.illnessName?.ifEmpty { "General Consult" } ?: "General Consult",
-                        fontSize = 11.sp,
+                        text = doctorName.replace("Dr.", "").replace("Dr ", "").trim().take(1).uppercase(),
+                        color = DeepTeal,
                         fontWeight = FontWeight.Bold,
-                        color = DeepTeal
+                        fontSize = 16.sp
                     )
                 }
-            }
-
-            HorizontalDivider(color = DeepTeal.copy(alpha = 0.1f))
-
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = "Illness details:",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SlateGray
-                )
-                Text(
-                    text = appointment.illnessDescription?.ifEmpty { "No description provided." } ?: "No description provided.",
-                    fontSize = 12.sp,
-                    color = CharcoalText
-                )
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(SurfaceWhite.copy(alpha = 0.7f), RoundedCornerShape(10.dp))
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Favorite,
-                        contentDescription = "Advice",
-                        tint = CoralOrange,
-                        modifier = Modifier.size(14.dp)
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (doctorName.startsWith("Dr.")) doctorName else "Dr. $doctorName",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = CharcoalText
                     )
                     Text(
-                        text = "Treatment & Prescription:",
+                        text = firstAppt.specialization.ifEmpty { "Specialist" }.replaceFirstChar { it.uppercase() },
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = CoralOrange
+                        color = SlateGray
                     )
                 }
-                Text(
-                    text = appointment.doctorAdvice ?: "",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = CharcoalText
+                Icon(
+                    imageVector = Icons.Default.MedicalServices,
+                    contentDescription = null,
+                    tint = DeepTeal,
+                    modifier = Modifier.size(20.dp)
                 )
+            }
+            
+            Spacer(Modifier.height(12.dp))
+            HorizontalDivider(color = BorderGray, thickness = 0.5.dp)
+            Spacer(Modifier.height(12.dp))
+
+            // List of advices for this doctor
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                appointments.forEachIndexed { index, appt ->
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .background(SoftTeal.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = appt.illnessName?.ifEmpty { "General Consult" } ?: "General Consult",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = DeepTeal
+                                )
+                            }
+                            Text(
+                                text = "📅 ${appt.date}",
+                                fontSize = 11.sp,
+                                color = SlateGray,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        if (!appt.illnessDescription.isNullOrEmpty()) {
+                            Text(
+                                text = "Illness: ${appt.illnessDescription}",
+                                fontSize = 12.sp,
+                                color = CharcoalText
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(SoftTeal.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
+                                .padding(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Favorite,
+                                contentDescription = null,
+                                tint = CoralOrange,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "Treatment & Prescription:",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CoralOrange
+                                )
+                                Text(
+                                    text = appt.doctorAdvice ?: "",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = CharcoalText
+                                )
+                            }
+                        }
+                    }
+                    
+                    if (index < appointments.size - 1) {
+                        Spacer(Modifier.height(8.dp))
+                        HorizontalDivider(color = BorderGray.copy(alpha = 0.5f), thickness = 0.5.dp)
+                    }
+                }
             }
         }
     }

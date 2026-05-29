@@ -239,8 +239,9 @@ fun PatientDetailsAdviceDialog(
                         }
                     }
 
-                    // 2. Patient Reported Illness & Symptoms — only for actual appointments
-                    if (!showAsPatientProfile) {
+                    // 2. Patient Reported Illness & Symptoms — shown if symptoms exist
+                    val hasSymptoms = !appointment.illnessName.isNullOrEmpty() || !appointment.illnessDescription.isNullOrEmpty()
+                    if (!showAsPatientProfile || hasSymptoms) {
                         Card(
                             colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
                             shape = RoundedCornerShape(16.dp),
@@ -631,31 +632,42 @@ fun PatientDetailsAdviceDialog(
                                     }
                                 }
                             }
+                            
+                            Spacer(Modifier.height(12.dp))
+                            Button(
+                                onClick = { isNewReportFormVisible = true },
+                                modifier = Modifier.fillMaxWidth().height(46.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = DeepTeal)
+                            ) {
+                                Icon(Icons.Default.Add, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Add Advice / Clinical Report", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
                         }
                     }
 
-                    // 5. Collapsible "Add New Health Report" Section — hidden in patient profile mode
-                    if (!showAsPatientProfile) {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                // Section trigger header
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { isNewReportFormVisible = !isNewReportFormVisible },
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "➕ Add Patient Health Record & Advice", 
-                                        fontSize = 12.sp, 
-                                        fontWeight = FontWeight.Bold, 
-                                        color = DeepTeal
-                                    )
+                    // 5. Collapsible "Add New Health Report" Section — always show so doctor can create advice/report
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            // Section trigger header
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { isNewReportFormVisible = !isNewReportFormVisible },
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (appointment.id == 0) "➕ Create Clinical Advice & Notes" else "➕ Add Patient Health Record & Advice", 
+                                    fontSize = 12.sp, 
+                                    fontWeight = FontWeight.Bold, 
+                                    color = DeepTeal
+                                )
                                     Icon(
                                         imageVector = if (isNewReportFormVisible) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                                         contentDescription = "Expand",
@@ -800,7 +812,6 @@ fun PatientDetailsAdviceDialog(
                             }
                         } // end Column inside Card
                         } // end Card
-                    } // end if (!showAsPatientProfile) for Add Report section
                 }
 
                 Spacer(Modifier.height(16.dp))

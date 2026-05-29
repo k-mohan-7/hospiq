@@ -38,6 +38,8 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import android.app.DatePickerDialog
 import java.util.Calendar
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 @Composable
 fun DoctorProfileScreen(
@@ -58,7 +60,7 @@ fun DoctorProfileScreen(
         is DoctorProfileState.Success -> s.slots
         else -> DemoData.timeSlots
     }
-
+ 
     LaunchedEffect(doctorId) { doctorViewModel.loadDoctorProfile(doctorId) }
 
     // Navigate on successful booking
@@ -90,6 +92,12 @@ fun DoctorProfileScreen(
     var selectedSlotId by remember { mutableStateOf<Int?>(null) }
     var consultationType by remember { mutableStateOf("in_person") }
     
+    // Symptom form state variables
+    var showSymptomBookingDialog by remember { mutableStateOf(false) }
+    var illnessNameInput by remember { mutableStateOf("") }
+    var illnessDescInput by remember { mutableStateOf("") }
+    var precautionsInput by remember { mutableStateOf("") }
+
     var showAvailabilitySettings by remember { mutableStateOf(false) }
     val isOwnProfile = sessionManager.getRole() == "doctor" && sessionManager.getDoctorId() == doctorId
 
@@ -169,15 +177,8 @@ fun DoctorProfileScreen(
                         Spacer(Modifier.height(12.dp))
                         Button(
                             onClick = {
-                                selectedSlotId?.let { slotId ->
-                                    appointmentViewModel.bookAppointment(
-                                        context = context,
-                                        patientId = sessionManager.getUserId(),
-                                        doctorId = doctorId,
-                                        slotId = slotId,
-                                        consultationType = consultationType,
-                                        date = selectedDateString
-                                    )
+                                if (selectedSlotId != null) {
+                                    showSymptomBookingDialog = true
                                 }
                             },
                             modifier = Modifier.fillMaxWidth().height(52.dp),
@@ -210,6 +211,159 @@ fun DoctorProfileScreen(
                 }
             )
         }
+
+        // Custom Gorgeous Dialog to collect patient reported symptoms and prior medicines
+        if (showSymptomBookingDialog) {
+            Dialog(
+                onDismissRequest = { showSymptomBookingDialog = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth(0.92f)
+                        .wrapContentHeight(),
+                    shape = RoundedCornerShape(24.dp),
+                    color = AppBackground
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Title and Close Button
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Describe Symptoms 🩺",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = CharcoalText
+                            )
+                            IconButton(
+                                onClick = { showSymptomBookingDialog = false },
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(BorderGray.copy(alpha = 0.4f), CircleShape)
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Close", tint = CharcoalText, modifier = Modifier.size(16.dp))
+                            }
+                        }
+
+                        Text(
+                            text = "Please tell us more about your current symptoms or concerns to help the doctor prepare for your visit.",
+                            fontSize = 13.sp,
+                            color = SlateGray,
+                            lineHeight = 18.sp
+                        )
+
+                        // Field 1: Illness Name / Reason for Visit
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Reason for Visit / Illness Name", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CharcoalText)
+                                Spacer(Modifier.width(4.dp))
+                                Text("*", color = CoralOrange, fontWeight = FontWeight.Bold)
+                            }
+                            OutlinedTextField(
+                                value = illnessNameInput,
+                                onValueChange = { illnessNameInput = it },
+                                placeholder = { Text("e.g. Chest Discomfort, Migraine, Cough") },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = DeepTeal,
+                                    unfocusedBorderColor = BorderGray,
+                                    focusedTextColor = CharcoalText,
+                                    unfocusedTextColor = CharcoalText
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true
+                            )
+                        }
+
+                        // Field 2: Symptoms Description
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Symptoms & Description", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CharcoalText)
+                            OutlinedTextField(
+                                value = illnessDescInput,
+                                onValueChange = { illnessDescInput = it },
+                                placeholder = { Text("Describe how long you've had it, severity, or triggers...") },
+                                modifier = Modifier.fillMaxWidth().height(100.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = DeepTeal,
+                                    unfocusedBorderColor = BorderGray,
+                                    focusedTextColor = CharcoalText,
+                                    unfocusedTextColor = CharcoalText
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                        }
+
+                        // Field 3: Precautions / Medications taken
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Medications / Precautions Taken", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CharcoalText)
+                            OutlinedTextField(
+                                value = precautionsInput,
+                                onValueChange = { precautionsInput = it },
+                                placeholder = { Text("e.g. Aspirin, Cough syrup, warm fluids") },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = DeepTeal,
+                                    unfocusedBorderColor = BorderGray,
+                                    focusedTextColor = CharcoalText,
+                                    unfocusedTextColor = CharcoalText
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true
+                            )
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        // Actions
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { showSymptomBookingDialog = false },
+                                modifier = Modifier.weight(1f).height(48.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = CharcoalText)
+                            ) {
+                                Text("Cancel", fontWeight = FontWeight.Bold)
+                            }
+
+                            Button(
+                                onClick = {
+                                    selectedSlotId?.let { slotId ->
+                                        appointmentViewModel.bookAppointment(
+                                            context = context,
+                                            patientId = sessionManager.getUserId(),
+                                            doctorId = doctorId,
+                                            slotId = slotId,
+                                            consultationType = consultationType,
+                                            date = selectedDateString,
+                                            illnessName = illnessNameInput,
+                                            illnessDescription = illnessDescInput,
+                                            precautions = precautionsInput
+                                        )
+                                        showSymptomBookingDialog = false
+                                    }
+                                },
+                                modifier = Modifier.weight(1f).height(48.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = DeepTeal),
+                                enabled = illnessNameInput.trim().isNotEmpty()
+                            ) {
+                                Text("Book Now", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
 
         Column(
             modifier = Modifier
