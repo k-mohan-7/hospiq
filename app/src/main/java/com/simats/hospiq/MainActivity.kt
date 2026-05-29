@@ -306,6 +306,8 @@ fun HospiQNavHost(
                 appointmentViewModel = appointmentViewModel,
                 doctorViewModel = doctorViewModel,
                 onLogout = {
+                    appointmentViewModel.resetAll()
+                    doctorViewModel.resetAll()
                     sessionManager.clearSession()
                     navController.navigate(Screen.Onboarding.route) { popUpTo(0) }
                 },

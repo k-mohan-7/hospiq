@@ -24,6 +24,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Edit
@@ -31,7 +32,46 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
+
+// Full-screen image viewer overlay
+@Composable
+private fun FullScreenImageViewer(imageUrl: String, onDismiss: () -> Unit) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = true)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.92f))
+                .clickable { onDismiss() },
+            contentAlignment = Alignment.Center
+        ) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = "Full Screen Medical Document",
+                modifier = Modifier
+                    .fillMaxWidth(0.95f)
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(12.dp)),
+                contentScale = ContentScale.Fit
+            )
+            // Close button
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .size(40.dp)
+                    .background(Color.White.copy(alpha = 0.15f), CircleShape)
+            ) {
+                Icon(Icons.Default.Close, "Close", tint = Color.White)
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -43,7 +83,9 @@ fun PatientDetailsAdviceDialog(
     onSubmitAdvice: (String) -> Unit = {},
     onSubmitReport: ((healthStatus: String, notes: String, docs: List<ByteArray>, docNames: List<String>) -> Unit)? = null,
     onEditReport: ((reportId: Int, healthStatus: String, notes: String) -> Unit)? = null,
-    onDeleteReport: ((reportId: Int) -> Unit)? = null
+    onDeleteReport: ((reportId: Int) -> Unit)? = null,
+    /** When true: hide appointment-specific sections (opened from patient card, not an appointment) */
+    showAsPatientProfile: Boolean = false
 ) {
     val context = LocalContext.current
     var adviceText by remember { mutableStateOf(appointment.doctorAdvice ?: "") }
@@ -54,6 +96,9 @@ fun PatientDetailsAdviceDialog(
     val documentBytes = remember { mutableStateListOf<ByteArray>() }
     val documentNames = remember { mutableStateListOf<String>() }
 
+    // Full-screen image viewer state
+    var fullScreenImageUrl by remember { mutableStateOf<String?>(null) }
+
     // Upgraded interactive states
     var expandedReportId by remember { mutableStateOf<Int?>(null) }
     var editingReportId by remember { mutableStateOf<Int?>(null) }
@@ -61,8 +106,9 @@ fun PatientDetailsAdviceDialog(
     var editNotes by remember { mutableStateOf("") }
     
     // Auto visible for active consultations, collapsible for past ones
+    // Not shown when viewed as patient profile (no real appointment)
     var isNewReportFormVisible by remember { 
-        mutableStateOf(appointment.id > 0 && appointment.status == "accepted") 
+        mutableStateOf(!showAsPatientProfile && appointment.id > 0 && appointment.status == "accepted") 
     }
 
     val fileLauncher = rememberLauncherForActivityResult(
@@ -90,6 +136,12 @@ fun PatientDetailsAdviceDialog(
             .take(3)
     }
 
+    // Show full-screen image viewer if requested
+    val imgUrl = fullScreenImageUrl
+    if (imgUrl != null) {
+        FullScreenImageViewer(imageUrl = imgUrl, onDismiss = { fullScreenImageUrl = null })
+    }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -114,7 +166,7 @@ fun PatientDetailsAdviceDialog(
                 ) {
                     Column {
                         Text(
-                            text = "Patient Profile",
+                            text = if (showAsPatientProfile) "Patient Health Records" else "Patient Profile",
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color = CharcoalText
@@ -130,6 +182,23 @@ fun PatientDetailsAdviceDialog(
                     }
                 }
 
+                if (showAsPatientProfile) {
+                    Spacer(Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(SoftTeal.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .padding(8.dp)
+                    ) {
+                        Text(
+                            text = "ℹ️ Showing only records submitted by you for this patient.",
+                            fontSize = 11.sp,
+                            color = DeepTeal,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
                 Spacer(Modifier.height(16.dp))
 
                 // Scrollable Content
@@ -139,74 +208,78 @@ fun PatientDetailsAdviceDialog(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // 1. Appointment Metadata Card
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("Appointment Info", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = DeepTeal)
-                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                Text("📅 Date: ${appointment.date.ifEmpty { "N/A" }}", fontSize = 13.sp, color = CharcoalText)
-                                Text("🕐 Time: ${appointment.time.ifEmpty { "N/A" }}", fontSize = 13.sp, color = CharcoalText)
+                    // 1. Appointment Metadata Card — only for actual appointments
+                    if (!showAsPatientProfile) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Appointment Info", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = DeepTeal)
+                                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                    Text("📅 Date: ${appointment.date.ifEmpty { "N/A" }}", fontSize = 13.sp, color = CharcoalText)
+                                    Text("🕐 Time: ${appointment.time.ifEmpty { "N/A" }}", fontSize = 13.sp, color = CharcoalText)
+                                }
+                                Text("🏥 Hospital: ${appointment.hospitalName.ifEmpty { "N/A" }}", fontSize = 13.sp, color = CharcoalText)
+                                Text("🩺 Mode: ${(appointment.consultationType ?: "in_person").replace("_", " ").uppercase()}", fontSize = 13.sp, color = CharcoalText)
+                                Text(
+                                    "Status: ${(appointment.status ?: "active").replaceFirstChar { it.uppercaseChar() }}",
+                                    fontSize = 13.sp,
+                                    color = when (appointment.status) {
+                                        "accepted" -> MintGreen
+                                        "pending" -> AmberStar
+                                        "completed" -> DeepTeal
+                                        "cancelled", "rejected" -> CoralOrange
+                                        else -> SlateGray
+                                    },
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
-                            Text("🏥 Hospital: ${appointment.hospitalName.ifEmpty { "N/A" }}", fontSize = 13.sp, color = CharcoalText)
-                            Text("🩺 Mode: ${(appointment.consultationType ?: "in_person").replace("_", " ").uppercase()}", fontSize = 13.sp, color = CharcoalText)
-                            Text(
-                                "Status: ${(appointment.status ?: "active").replaceFirstChar { it.uppercaseChar() }}",
-                                fontSize = 13.sp,
-                                color = when (appointment.status) {
-                                    "accepted" -> MintGreen
-                                    "pending" -> AmberStar
-                                    "completed" -> DeepTeal
-                                    "cancelled", "rejected" -> CoralOrange
-                                    else -> SlateGray
-                                },
-                                fontWeight = FontWeight.SemiBold
-                            )
                         }
                     }
 
-                    // 2. Patient Reported Illness & Symptoms (Always Show Details)
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("Patient Reported Illness & Symptoms", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CoralOrange)
-                            
-                            Column {
-                                Text("Illness Name / Reason", fontSize = 11.sp, color = SlateGray, fontWeight = FontWeight.SemiBold)
-                                Text(
-                                    text = appointment.illnessName?.ifEmpty { "Not specified" } ?: "Not specified",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = CharcoalText
-                                )
-                            }
-                            
-                            HorizontalDivider(color = BorderGray, thickness = 0.5.dp)
+                    // 2. Patient Reported Illness & Symptoms — only for actual appointments
+                    if (!showAsPatientProfile) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text("Patient Reported Illness & Symptoms", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CoralOrange)
+                                
+                                Column {
+                                    Text("Illness Name / Reason", fontSize = 11.sp, color = SlateGray, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        text = appointment.illnessName?.ifEmpty { "Not specified" } ?: "Not specified",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = CharcoalText
+                                    )
+                                }
+                                
+                                HorizontalDivider(color = BorderGray, thickness = 0.5.dp)
 
-                            Column {
-                                Text("Symptoms Description", fontSize = 11.sp, color = SlateGray, fontWeight = FontWeight.SemiBold)
-                                Text(
-                                    text = appointment.illnessDescription?.ifEmpty { "No description provided" } ?: "No description provided",
-                                    fontSize = 14.sp,
-                                    color = CharcoalText
-                                )
-                            }
+                                Column {
+                                    Text("Symptoms Description", fontSize = 11.sp, color = SlateGray, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        text = appointment.illnessDescription?.ifEmpty { "No description provided" } ?: "No description provided",
+                                        fontSize = 14.sp,
+                                        color = CharcoalText
+                                    )
+                                }
 
-                            HorizontalDivider(color = BorderGray, thickness = 0.5.dp)
+                                HorizontalDivider(color = BorderGray, thickness = 0.5.dp)
 
-                            Column {
-                                Text("Precautions Taken", fontSize = 11.sp, color = SlateGray, fontWeight = FontWeight.SemiBold)
-                                Text(
-                                    text = appointment.precautions?.ifEmpty { "None" } ?: "None",
-                                    fontSize = 14.sp,
-                                    color = CharcoalText
-                                )
+                                Column {
+                                    Text("Precautions Taken", fontSize = 11.sp, color = SlateGray, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        text = appointment.precautions?.ifEmpty { "None" } ?: "None",
+                                        fontSize = 14.sp,
+                                        color = CharcoalText
+                                    )
+                                }
                             }
                         }
                     }
@@ -493,14 +566,22 @@ fun PatientDetailsAdviceDialog(
                                                                             )
                                                                         }
                                                                         if (path.endsWith(".png", true) || path.endsWith(".jpg", true) || path.endsWith(".jpeg", true) || doc.fileType?.contains("image", true) == true) {
+                                                                            val fullUrl = "${com.simats.hospiq.network.ApiConfig.IMAGE_BASE_URL}uploads/reports/$path"
                                                                             AsyncImage(
-                                                                                model = "${com.simats.hospiq.network.ApiConfig.IMAGE_BASE_URL}uploads/reports/$path",
+                                                                                model = fullUrl,
                                                                                 contentDescription = "Medical Scan Preview",
                                                                                 modifier = Modifier
                                                                                     .fillMaxWidth()
                                                                                     .height(140.dp)
-                                                                                    .clip(RoundedCornerShape(6.dp)),
+                                                                                    .clip(RoundedCornerShape(6.dp))
+                                                                                    .clickable { fullScreenImageUrl = fullUrl },
                                                                                 contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                                                            )
+                                                                            Text(
+                                                                                text = "Tap image to view full screen",
+                                                                                fontSize = 10.sp,
+                                                                                color = SlateGray,
+                                                                                modifier = Modifier.padding(top = 2.dp)
                                                                             )
                                                                         }
                                                                     }
@@ -553,34 +634,35 @@ fun PatientDetailsAdviceDialog(
                         }
                     }
 
-                    // 5. Collapsible "➕ Add New Health Report / Give Advice" Section
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            // Section trigger header
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { isNewReportFormVisible = !isNewReportFormVisible },
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "➕ Add Patient Health Record & Advice", 
-                                    fontSize = 12.sp, 
-                                    fontWeight = FontWeight.Bold, 
-                                    color = DeepTeal
-                                )
-                                Icon(
-                                    imageVector = if (isNewReportFormVisible) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                    contentDescription = "Expand",
-                                    tint = DeepTeal,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
+                    // 5. Collapsible "Add New Health Report" Section — hidden in patient profile mode
+                    if (!showAsPatientProfile) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                // Section trigger header
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { isNewReportFormVisible = !isNewReportFormVisible },
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "➕ Add Patient Health Record & Advice", 
+                                        fontSize = 12.sp, 
+                                        fontWeight = FontWeight.Bold, 
+                                        color = DeepTeal
+                                    )
+                                    Icon(
+                                        imageVector = if (isNewReportFormVisible) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = "Expand",
+                                        tint = DeepTeal,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             
                             if (isNewReportFormVisible) {
                                 HorizontalDivider(color = BorderGray, thickness = 0.5.dp)
@@ -716,8 +798,9 @@ fun PatientDetailsAdviceDialog(
                                     }
                                 }
                             }
-                        }
-                    }
+                        } // end Column inside Card
+                        } // end Card
+                    } // end if (!showAsPatientProfile) for Add Report section
                 }
 
                 Spacer(Modifier.height(16.dp))

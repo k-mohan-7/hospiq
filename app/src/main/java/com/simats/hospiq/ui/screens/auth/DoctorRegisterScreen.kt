@@ -1,5 +1,7 @@
 package com.simats.hospiq.ui.screens.auth
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,6 +15,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +25,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.simats.hospiq.ui.theme.*
@@ -31,6 +37,68 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import com.simats.hospiq.ui.components.OSMMapPicker
+
+// ── Password strength helpers (shared between auth screens) ──────────────────
+private fun drPasswordStrengthLevel(password: String): Int {
+    if (password.isEmpty()) return 0
+    var score = 0
+    if (password.length >= 8) score++
+    if (password.any { it.isUpperCase() }) score++
+    if (password.any { it.isLowerCase() }) score++
+    if (password.any { it.isDigit() }) score++
+    if (password.any { !it.isLetterOrDigit() }) score++
+    return score
+}
+
+private fun drPasswordStrengthLabel(level: Int) = when (level) {
+    0 -> ""; 1 -> "Weak"; 2 -> "Fair"; 3 -> "Good"; 4 -> "Strong"; else -> "Very Strong"
+}
+
+private fun drPasswordStrengthColor(level: Int) = when (level) {
+    1 -> Color(0xFFD32F2F); 2 -> Color(0xFFE65100); 3 -> Color(0xFFF9A825)
+    4 -> Color(0xFF388E3C); else -> Color(0xFF1B5E20)
+}
+
+@Composable
+private fun DoctorPasswordStrengthBar(password: String) {
+    val level = drPasswordStrengthLevel(password)
+    if (password.isEmpty()) return
+    val label = drPasswordStrengthLabel(level)
+    val color = drPasswordStrengthColor(level)
+    val animColor by animateColorAsState(targetValue = color, animationSpec = tween(300))
+    Column {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            repeat(5) { i ->
+                val barColor = if (i < level) animColor else BorderGray
+                Box(modifier = Modifier.weight(1f).height(4.dp).background(barColor, RoundedCornerShape(2.dp)))
+            }
+        }
+        if (label.isNotEmpty()) {
+            Text(text = label, fontSize = 11.sp, color = animColor, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 2.dp))
+        }
+        val hasUpper = password.any { it.isUpperCase() }
+        val hasLower = password.any { it.isLowerCase() }
+        val hasDigit = password.any { it.isDigit() }
+        val hasSpecial = password.any { !it.isLetterOrDigit() }
+        val hasLength = password.length >= 8
+        Column(modifier = Modifier.padding(top = 4.dp)) {
+            DoctorPwReqRow("At least 8 characters", hasLength)
+            DoctorPwReqRow("Uppercase letter (A-Z)", hasUpper)
+            DoctorPwReqRow("Lowercase letter (a-z)", hasLower)
+            DoctorPwReqRow("Number (0-9)", hasDigit)
+            DoctorPwReqRow("Special character (!@#\$...)", hasSpecial)
+        }
+    }
+}
+
+@Composable
+private fun DoctorPwReqRow(text: String, met: Boolean) {
+    val color = if (met) Color(0xFF388E3C) else SlateGray
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 1.dp)) {
+        Text(if (met) "✓" else "○", fontSize = 10.sp, color = color, modifier = Modifier.width(14.dp))
+        Text(text, fontSize = 10.sp, color = color)
+    }
+}
 
 
 @Composable
@@ -45,8 +113,29 @@ fun DoctorRegisterScreen(
     var email by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    
+    var showPassword by remember { mutableStateOf(false) }
+    var showPasswordStrength by remember { mutableStateOf(false) }
+
+    // Inline field errors for Step 1
+    var emailError by remember { mutableStateOf<String?>(null) }
+    var phoneError by remember { mutableStateOf<String?>(null) }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+
     val context = LocalContext.current
+
+    // Parse backend error → show inline on the relevant field
+    LaunchedEffect(authViewModel.errorMessage) {
+        val err = authViewModel.errorMessage ?: return@LaunchedEffect
+        val errLower = err.lowercase()
+        when {
+            errLower.contains("email") && (errLower.contains("exist") || errLower.contains("duplicate") || errLower.contains("already")) -> {
+                emailError = "This email address is already registered"
+            }
+            errLower.contains("phone") && (errLower.contains("exist") || errLower.contains("duplicate") || errLower.contains("already")) -> {
+                phoneError = "This phone number is already in use"
+            }
+        }
+    }
 
     // Profile photo state
     var profilePhotoUri by remember { mutableStateOf<android.net.Uri?>(null) }
@@ -253,19 +342,99 @@ fun DoctorRegisterScreen(
                             Spacer(Modifier.height(20.dp))
 
                             RegField("Full Name", fullName, { fullName = it }, "Dr. Jane Smith")
-                            RegField("Email Address", email, { email = it }, "jane.smith@medical.com", KeyboardType.Email)
-                            RegField("Phone Number", phone, { phone = it }, "+1 (555) 000-0000", KeyboardType.Phone)
-                            RegField("Password", password, { password = it }, "••••••••", KeyboardType.Password)
+                            // Email field with inline error
+                            Text("Email Address", fontSize = 13.sp, color = SlateGray, fontWeight = FontWeight.Medium)
+                            Spacer(Modifier.height(6.dp))
+                            OutlinedTextField(
+                                value = email,
+                                onValueChange = { email = it; emailError = null; authViewModel.clearError() },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("jane.smith@medical.com", color = DisabledGray) },
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true,
+                                isError = emailError != null,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = if (emailError != null) Color(0xFFD32F2F) else DeepTeal,
+                                    unfocusedBorderColor = if (emailError != null) Color(0xFFD32F2F) else BorderGray,
+                                    focusedTextColor = CharcoalText, unfocusedTextColor = CharcoalText
+                                )
+                            )
+                            if (emailError != null) {
+                                Text("⚠ $emailError", color = Color(0xFFD32F2F), fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp, start = 4.dp))
+                            }
+                            Spacer(Modifier.height(14.dp))
+                            // Phone field with inline error
+                            Text("Phone Number", fontSize = 13.sp, color = SlateGray, fontWeight = FontWeight.Medium)
+                            Spacer(Modifier.height(6.dp))
+                            OutlinedTextField(
+                                value = phone,
+                                onValueChange = { phone = it; phoneError = null; authViewModel.clearError() },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("+1 (555) 000-0000", color = DisabledGray) },
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true,
+                                isError = phoneError != null,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = if (phoneError != null) Color(0xFFD32F2F) else DeepTeal,
+                                    unfocusedBorderColor = if (phoneError != null) Color(0xFFD32F2F) else BorderGray,
+                                    focusedTextColor = CharcoalText, unfocusedTextColor = CharcoalText
+                                )
+                            )
+                            if (phoneError != null) {
+                                Text("⚠ $phoneError", color = Color(0xFFD32F2F), fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp, start = 4.dp))
+                            }
+                            Spacer(Modifier.height(14.dp))
+                            // Password with strength indicator
+                            Text("Password", fontSize = 13.sp, color = SlateGray, fontWeight = FontWeight.Medium)
+                            Spacer(Modifier.height(6.dp))
+                            OutlinedTextField(
+                                value = password,
+                                onValueChange = { password = it; passwordError = null; showPasswordStrength = it.isNotEmpty() },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("••••••••", color = DisabledGray) },
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true,
+                                isError = passwordError != null,
+                                visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                                trailingIcon = {
+                                    IconButton(onClick = { showPassword = !showPassword }) {
+                                        Icon(
+                                            imageVector = if (showPassword) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                            contentDescription = null, tint = SlateGray
+                                        )
+                                    }
+                                },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = if (passwordError != null) Color(0xFFD32F2F) else DeepTeal,
+                                    unfocusedBorderColor = if (passwordError != null) Color(0xFFD32F2F) else BorderGray,
+                                    focusedTextColor = CharcoalText, unfocusedTextColor = CharcoalText
+                                )
+                            )
+                            if (passwordError != null) {
+                                Text("⚠ $passwordError", color = Color(0xFFD32F2F), fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp, start = 4.dp))
+                            }
+                            if (showPasswordStrength) {
+                                Spacer(Modifier.height(6.dp))
+                                DoctorPasswordStrengthBar(password = password)
+                            }
                             Spacer(Modifier.height(8.dp))
                             Button(
                                 onClick = {
+                                    var valid = true
                                     if (fullName.isBlank() || email.isBlank() || phone.isBlank() || password.isBlank()) {
                                         android.widget.Toast.makeText(context, "Please fill all fields", android.widget.Toast.LENGTH_SHORT).show()
+                                        valid = false
+                                    } else if (drPasswordStrengthLevel(password) < 3) {
+                                        passwordError = "Password must include uppercase, lowercase, number & special character"
+                                        valid = false
                                     } else if (profilePhotoBytes == null) {
                                         android.widget.Toast.makeText(context, "Doctor profile picture is mandatory", android.widget.Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        step = 2
+                                        valid = false
                                     }
+                                    if (valid) { step = 2 }
                                 },
                                 modifier = Modifier.fillMaxWidth().height(52.dp),
                                 shape = RoundedCornerShape(14.dp),
@@ -618,6 +787,7 @@ private fun RegField(
         shape = RoundedCornerShape(12.dp),
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = keyboard),
+        visualTransformation = if (keyboard == KeyboardType.Password) PasswordVisualTransformation() else VisualTransformation.None,
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = DeepTeal,
             unfocusedBorderColor = BorderGray,

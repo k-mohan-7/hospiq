@@ -66,10 +66,13 @@ fun DoctorDashboardScreen(
     val confirmed = appointments.filter { it.status == "accepted" }
     val completed = appointments.filter { it.status == "completed" }
     var selectedAppointmentForDetail by remember { mutableStateOf<Appointment?>(null) }
+    var isFromPatientCard by remember { mutableStateOf(false) }
     val healthReports by appointmentViewModel.healthReports.collectAsState()
     LaunchedEffect(selectedAppointmentForDetail) {
-        selectedAppointmentForDetail?.let {
-            appointmentViewModel.loadPatientHealthReports(it.patientId)
+        val appt = selectedAppointmentForDetail
+        if (appt != null && !isFromPatientCard) {
+            // Only load health reports for real appointments (not patient card clicks)
+            appointmentViewModel.loadPatientHealthReports(appt.patientId)
         }
     }
 
@@ -232,6 +235,7 @@ fun DoctorDashboardScreen(
                                                     patientName = patient.fullName,
                                                     doctorId = doctorId
                                                 )
+                                            isFromPatientCard = true
                                             selectedAppointmentForDetail = latestAppt
                                         },
                                     shape = RoundedCornerShape(16.dp),
@@ -327,6 +331,7 @@ fun DoctorDashboardScreen(
                             }
                         },
                         onCardClick = {
+                            isFromPatientCard = false
                             selectedAppointmentForDetail = appt
                         },
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -339,6 +344,7 @@ fun DoctorDashboardScreen(
                         appointment = appt,
                         isDoctor = true,
                         onCardClick = {
+                            isFromPatientCard = false
                             selectedAppointmentForDetail = appt
                         },
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -366,6 +372,7 @@ fun DoctorDashboardScreen(
                             appointment = appt,
                             isDoctor = true,
                             onCardClick = {
+                                isFromPatientCard = false
                                 selectedAppointmentForDetail = appt
                             },
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).alpha(0.7f)
@@ -377,6 +384,7 @@ fun DoctorDashboardScreen(
                             appointment = appt,
                             isDoctor = true,
                             onCardClick = {
+                                isFromPatientCard = false
                                 selectedAppointmentForDetail = appt
                             },
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).alpha(0.5f)
@@ -410,7 +418,11 @@ fun DoctorDashboardScreen(
                     appointment = appt,
                     allAppointments = appointments,
                     healthReports = healthReports,
-                    onDismiss = { selectedAppointmentForDetail = null },
+                    showAsPatientProfile = isFromPatientCard,
+                    onDismiss = {
+                        selectedAppointmentForDetail = null
+                        isFromPatientCard = false
+                    },
                     onSubmitReport = { status, notes, docs, docNames ->
                         appointmentViewModel.submitHealthReport(
                             appointmentId = appt.id,
@@ -422,6 +434,7 @@ fun DoctorDashboardScreen(
                             documentNames = docNames
                         ) {
                             selectedAppointmentForDetail = null
+                            isFromPatientCard = false
                             appointmentViewModel.loadDoctorAppointments(doctorId)
                         }
                     },

@@ -180,8 +180,16 @@ class AppointmentViewModel : ViewModel() {
     private val _healthReports = MutableStateFlow<List<com.simats.hospiq.network.models.HealthReport>>(emptyList())
     val healthReports: StateFlow<List<com.simats.hospiq.network.models.HealthReport>> = _healthReports
 
+    /** Reset all state — call this on logout so a new session always starts clean */
+    fun resetAll() {
+        _appointmentsState.value = AppointmentListState.Loading
+        _healthReports.value = emptyList()
+        _bookingState.value = BookingState.Idle
+    }
+
     fun loadPatientHealthReports(patientId: Int) {
         viewModelScope.launch {
+            _healthReports.value = emptyList() // clear stale data first
             try {
                 val response = RetrofitInstance.api.getHealthReports(patientId = patientId)
                 if (response.isSuccessful && response.body()?.success == true) {

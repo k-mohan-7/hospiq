@@ -143,6 +143,7 @@ class DoctorViewModel : ViewModel() {
 
     fun loadDoctorPatients(doctorId: Int) {
         viewModelScope.launch {
+            _doctorPatients.value = emptyList() // clear stale data first
             try {
                 val response = RetrofitInstance.api.getDoctorPatients(doctorId)
                 if (response.isSuccessful && response.body()?.success == true) {
@@ -152,5 +153,12 @@ class DoctorViewModel : ViewModel() {
                 e.printStackTrace()
             }
         }
+    }
+
+    /** Reset all state — call this on logout so new sessions start clean */
+    fun resetAll() {
+        _profileState.value = DoctorProfileState.Loading
+        _doctorPatients.value = emptyList()
+        _doctorStatus.value = "available"
     }
 }
